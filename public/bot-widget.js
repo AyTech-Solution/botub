@@ -39,7 +39,10 @@
         borderRadius: '16px',
         boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
         backgroundColor: 'white',
+        opacity: '1',
+        visibility: 'visible',
         display: 'block'
+        
     });
 
     // 4. Page par add karna
