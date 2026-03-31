@@ -33,6 +33,7 @@ const UPI_ID = "aayush.kumawatptaxis";
 const TRIAL_PRICE = 199;
 const PREMIUM_PRICE = 1999;
 
+
 export default function PremiumPage() {
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<any>(null);
@@ -79,9 +80,10 @@ export default function PremiumPage() {
     
     // UPI Deep Link
 
-const trId = "BOTUB" + Date.now(); // Unique ID generated every time
-const upiUrl = `upi://pay?pa=${UPI_ID}&pn=Botub&tr=${trId}&tid=${trId}&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}&mode=02&orgid=000000`;
-    
+    const amount = 199;
+const note = "Payment for Botify AI";
+const randomTR = "TXN" + Math.floor(Math.random() * 99999999);
+const upiUrl = `upi://pay?pa=${UPI_ID}&pn=Botub&tr=${randomTR}&am=${amount}&cu=INR&mc=0000&tn=${encodeURIComponent(note)}`;
 
 
     
