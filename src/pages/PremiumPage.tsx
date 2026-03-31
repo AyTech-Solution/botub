@@ -78,10 +78,13 @@ export default function PremiumPage() {
     const planName = isTrial ? 'Trial' : 'Premium';
     
     // UPI Deep Link
-    const tr = "BOTUB" + Math.floor(Math.random() * 1000000); // Random ID
-const upiUrl = `upi://pay?pa=${UPI_ID}&pn=Botub&am=${amount}&tr=${tr}&cu=INR&tn=${encodeURIComponent(note)}`;
+
+const trId = "BOTUB" + Date.now(); // Unique ID generated every time
+const upiUrl = `upi://pay?pa=${UPI_ID}&pn=Botub&tr=${trId}&tid=${trId}&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}&mode=02&orgid=000000`;
     
 
+
+    
     // Check if mobile
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
