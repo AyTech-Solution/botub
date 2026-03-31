@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'motion/react';
-import { Bot, Zap, Shield, Globe, MessageSquare, BarChart3, ArrowRight, Volume2, Send, MessageCircle, Instagram } from 'lucide-react';
+import { motion } from "framer-motion";
+import {Bot, Globe, Send, MessageCircle, Instagram } from "lucide-react";
 import { speak } from '../services/ttsService';
 import { auth } from '../firebase';
 
