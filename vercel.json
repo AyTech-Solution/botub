@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/bot-widget.js",
+      "destination": "/bot-widget.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
