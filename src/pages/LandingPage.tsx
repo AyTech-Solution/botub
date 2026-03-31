@@ -211,26 +211,5 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="py-20 border-t border-gray-100 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-primary/20">
-              <Bot className="w-6 h-6" />
-            </div>
-            <span className="text-xl font-black tracking-tighter text-brand-dark">Botub</span>
-          </div>
-          <p className="text-gray-400 text-sm font-bold uppercase tracking-widest">
-            © 2026 Botub. All rights reserved.
-          </p>
-          <div className="flex space-x-6">
-            <a href="https://www.instagram.com/aytech_solution/" className="text-gray-400 hover:text-brand-primary transition-colors"><Instagram className="w-5 h-5" /></a>
-            <a href="https://wa.me/917742065298?text=Hello%20*Botub*!" className="text-gray-400 hover:text-brand-primary transition-colors"><MessageCircle className="w-5 h-5" /></a>
-            <a href="https://botub,vercel.app/auth/" className="text-gray-400 hover:text-brand-primary transition-colors"><Send className="w-5 h-5" /></a>
-          </div>
-        </div>
-      </footer>
-    </div>
   );
 }
