@@ -1,3 +1,8 @@
+Botify AI (Botub)
+Empowering Conversations with Intelligent AI Solutions
+
+Botify AI (Botub) ek advanced AI-powered platform hai jo users ko seamless interaction aur intelligent automation provide karta hai. Yeh project AyTech Solution ke under develop kiya gaya hai, jiska maksad complex tasks ko simple conversational AI ke zariye hal karna hai.
+
 
 ## Run Locally
 
@@ -9,3 +14,14 @@
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+   License
+      Yeh project AyTech Solution ke proprietary rights ke antargat aata hai.
+
+   Contact & Support
+      Agar aapko koi query hai ya aap contribute karna chahte hain, toh sampark karein:
+            Developer: Aayush Kumawat
+            Organization: AyTech Solution
+            Location: Jaipur, Rajasthan
+
+Note: Yeh project constant development mein hai. Naye updates ke liye repository check karte rahein!
