@@ -29,7 +29,7 @@ import { speak } from '../services/ttsService';
 import { toast } from 'sonner';
 import { arrayUnion } from 'firebase/firestore';
 
-const UPI_ID = "aayush.kumawatptaxis";
+const UPI_ID = "7742065298@ybl";
 const TRIAL_PRICE = 199;
 const PREMIUM_PRICE = 1999;
 
@@ -79,9 +79,7 @@ export default function PremiumPage() {
     const planName = isTrial ? 'Trial' : 'Premium';
     
     // UPI Deep Link
-
-    const amount = 199;
-const note = "Payment for Botify AI";
+    
 const randomTR = "TXN" + Math.floor(Math.random() * 99999999);
 const upiUrl = `upi://pay?pa=${UPI_ID}&pn=Botub&tr=${randomTR}&am=${amount}&cu=INR&mc=0000&tn=${encodeURIComponent(note)}`;
 
