@@ -225,7 +225,7 @@ export default function LandingPage() {
             © 2026 Botub. All rights reserved.
           </p>
           <div className="flex space-x-6">
-            <a href="#" className="text-gray-400 hover:text-brand-primary transition-colors"><Instagram className="w-5 h-5" /></a>
+            <a href="https://www.instagram.com/aytech_solution/" className="text-gray-400 hover:text-brand-primary transition-colors"><Instagram className="w-5 h-5" /></a>
             <a href="#" className="text-gray-400 hover:text-brand-primary transition-colors"><MessageCircle className="w-5 h-5" /></a>
             <a href="#" className="text-gray-400 hover:text-brand-primary transition-colors"><Send className="w-5 h-5" /></a>
           </div>
