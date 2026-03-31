@@ -226,7 +226,7 @@ export default function LandingPage() {
           </p>
           <div className="flex space-x-6">
             <a href="https://www.instagram.com/aytech_solution/" className="text-gray-400 hover:text-brand-primary transition-colors"><Instagram className="w-5 h-5" /></a>
-            <a href="#" className="text-gray-400 hover:text-brand-primary transition-colors"><MessageCircle className="w-5 h-5" /></a>
+            <a href="https://wa.me/917742065298?text=Hello%20Botub!/" className="text-gray-400 hover:text-brand-primary transition-colors"><MessageCircle className="w-5 h-5" /></a>
             <a href="#" className="text-gray-400 hover:text-brand-primary transition-colors"><Send className="w-5 h-5" /></a>
           </div>
         </div>
