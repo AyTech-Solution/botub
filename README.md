@@ -19,8 +19,11 @@ Botify AI (Botub) ek advanced AI-powered platform hai jo users ko seamless inter
 
    Contact & Support
       Agar aapko koi query hai ya aap contribute karna chahte hain, toh sampark karein:
-            Developer: Aayush Kumawat
-            Organization: AyTech Solution
-            Location: Jaipur, Rajasthan
+
+   Developer: Aayush Kumawat
+
+   Organization: AyTech Solution
+
+   Location: Jaipur, Rajasthan
 
 Note: Yeh project constant development mein hai. Naye updates ke liye repository check karte rahein!
