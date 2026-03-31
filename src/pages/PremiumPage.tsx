@@ -78,13 +78,15 @@ export default function PremiumPage() {
     const planName = isTrial ? 'Trial' : 'Premium';
     
     // UPI Deep Link
-    const upiUrl = `upi://pay?pa=${UPI_ID}&pn=Botub&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}`;
+    const tr = "BOTUB" + Math.floor(Math.random() * 1000000); // Random ID
+const upiUrl = `upi://pay?pa=${UPI_ID}&pn=Botub&am=${amount}&tr=${tr}&cu=INR&tn=${encodeURIComponent(note)}`;
+    
 
     // Check if mobile
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
     if (isMobile) {
-      window.location.assign(upiUrl);
+      window.location.href = upiUrl;
     } else {
       toast.info(`Please pay ₹${amount} to UPI ID: ${UPI_ID}`, {
         duration: 5000,
