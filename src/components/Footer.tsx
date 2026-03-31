@@ -38,7 +38,7 @@ export default function Footer() {
           <div>
             <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-6">Social</h3>
             <div className="flex space-x-4">
-              <a href="www.instagram.com/aytech_solution" className="text-gray-400 hover:text-indigo-600 transition-colors"><Instagram className="w-5 h-5" /></a>
+              <a href="www.instagram.com/aytech_solution/" className="text-gray-400 hover:text-indigo-600 transition-colors"><Instagram className="w-5 h-5" /></a>
             </div>
           </div>
         </div>
