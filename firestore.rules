@@ -1,0 +1,127 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required, email format)
+    //   - displayName: string
+    //   - photoURL: string
+    //   - createdAt: timestamp
+    //   - location: string
+    //   - premium: boolean
+    //
+    // Collection: bots
+    // Document ID: {botId}
+    // Fields:
+    //   - id: string (required)
+    //   - ownerId: string (required)
+    //   - name: string (required)
+    //   - companyName: string
+    //   - companyDetails: string
+    //   - links: list
+    //   - createdAt: timestamp
+    //   - status: string (enum: active, inactive, training)
+    //   - usageStats: map
+    //
+    // Collection: bots/{botId}/knowledge
+    // Document ID: {knowledgeId}
+    // Fields:
+    //   - botId: string (required)
+    //   - content: string (required)
+    //   - sourceUrl: string
+    //   - lastUpdated: timestamp
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isBotOwner(botId) {
+      return isAuthenticated() && get(/databases/$(database)/documents/bots/$(botId)).data.ownerId == request.auth.uid;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email);
+    }
+
+    function isValidBot(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'name']) &&
+             data.ownerId == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             (!('personality' in data) || data.personality in ['professional', 'friendly', 'humorous', 'technical']) &&
+             (!('responseSpeed' in data) || data.responseSpeed in ['instant', 'natural', 'slow']) &&
+             (!('voiceEnabled' in data) || data.voiceEnabled is bool) &&
+             (!('voiceOutputEnabled' in data) || data.voiceOutputEnabled is bool) &&
+             (!('voiceId' in data) || data.voiceId in ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr']) &&
+             (!('primaryLanguage' in data) || data.primaryLanguage in ['auto', 'English', 'Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Korean', 'Hindi', 'Arabic', 'Portuguese', 'Russian']) &&
+             (!('greetingMessage' in data) || (data.greetingMessage is string && data.greetingMessage.size() < 1000)) &&
+             (!('customInstructions' in data) || (data.customInstructions is string && data.customInstructions.size() < 5000));
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "aayush.23102008@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      // Users can create their profile but not set their role to admin or set subscription status
+      allow create: if isAuthenticated() && isOwner(userId) && 
+                      (!('role' in request.resource.data) || request.resource.data.role == 'client') &&
+                      (!('subscription' in request.resource.data) || request.resource.data.subscription.status == 'free');
+      // Only admins can update subscription status or roles
+      allow update: if isAuthenticated() && (
+                      (isOwner(userId) && 
+                       (!('role' in request.resource.data) || request.resource.data.role == resource.data.role) && 
+                       (!('subscription' in request.resource.data) || request.resource.data.subscription == resource.data.subscription)) || 
+                      isAdmin()
+                    );
+    }
+
+    match /bots/{botId} {
+      // Allow public read for the widget, but only if the bot is active
+      allow read: if (resource.data.status == 'active') || (isAuthenticated() && (resource.data.ownerId == request.auth.uid || isAdmin()));
+      allow create: if isAuthenticated() && isValidBot(request.resource.data);
+      allow update: if isAuthenticated() && resource.data.ownerId == request.auth.uid && isValidBot(request.resource.data) && request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
+
+      match /knowledge/{knowledgeId} {
+        // Allow public read for the widget if the bot is active
+        allow read: if (get(/databases/$(database)/documents/bots/$(botId)).data.status == 'active') || isBotOwner(botId) || isAdmin();
+        allow write: if isBotOwner(botId);
+      }
+
+      match /chats/{chatId} {
+        // Allow public chat creation for the widget
+        allow read: if isBotOwner(botId) || isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+        allow create: if (get(/databases/$(database)/documents/bots/$(botId)).data.status == 'active') || (isAuthenticated() && request.resource.data.userId == request.auth.uid);
+        allow update: if (get(/databases/$(database)/documents/bots/$(botId)).data.status == 'active') || (isAuthenticated() && (resource.data.userId == request.auth.uid || isBotOwner(botId)));
+      }
+    }
+  }
+}

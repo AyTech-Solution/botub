@@ -1,0 +1,122 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and settings",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "location": { "type": "string" },
+        "subscription": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "enum": ["free", "premium", "trial"] },
+            "expiryDate": { "type": "string", "format": "date-time" },
+            "trialEndDate": { "type": "string", "format": "date-time" },
+            "lastPaymentId": { "type": "string" }
+          }
+        }
+      },
+      "required": ["uid", "email"]
+    },
+    "Bot": {
+      "title": "Bot",
+      "description": "Chatbot configuration and metadata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "name": { "type": "string" },
+        "companyName": { "type": "string" },
+        "companyDetails": { "type": "string" },
+        "links": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastActiveAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "inactive", "training"] },
+        "personality": { "type": "string", "enum": ["professional", "friendly", "humorous", "technical"] },
+        "responseSpeed": { "type": "string", "enum": ["instant", "natural", "slow"] },
+        "voiceEnabled": { "type": "boolean", "description": "Whether voice input is enabled for the bot" },
+        "voiceOutputEnabled": { "type": "boolean", "description": "Whether voice output is enabled for the bot" },
+        "voiceId": { "type": "string", "description": "The ID of the voice to use for output", "enum": ["Puck", "Charon", "Kore", "Fenrir", "Zephyr"] },
+        "primaryLanguage": { "type": "string", "description": "The primary language the bot should respond in", "enum": ["auto", "English", "Spanish", "French", "German", "Chinese", "Japanese", "Korean", "Hindi", "Arabic", "Portuguese", "Russian"] },
+        "greetingMessage": { "type": "string", "description": "The message the bot sends when a new conversation starts" },
+        "customInstructions": { "type": "string", "description": "Custom instructions or persona for the bot" },
+        "integrationParams": {
+          "type": "object",
+          "properties": {
+            "webhookUrl": { "type": "string" },
+            "apiKey": { "type": "string" }
+          }
+        },
+        "usageStats": {
+          "type": "object",
+          "properties": {
+            "totalChats": { "type": "integer" },
+            "totalMessages": { "type": "integer" },
+            "errorRate": { "type": "string" },
+            "health": { "type": "string", "enum": ["healthy", "degraded", "failing"] },
+            "serverStatus": { "type": "string", "enum": ["online", "offline", "maintenance"] }
+          }
+        }
+      },
+      "required": ["id", "ownerId", "name"]
+    },
+    "KnowledgeBase": {
+      "title": "KnowledgeBase",
+      "description": "Extracted knowledge for a specific bot",
+      "type": "object",
+      "properties": {
+        "botId": { "type": "string" },
+        "content": { "type": "string" },
+        "sourceUrl": { "type": "string" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["botId", "content"]
+    },
+    "ChatSession": {
+      "title": "ChatSession",
+      "description": "A single chat session for a bot",
+      "type": "object",
+      "properties": {
+        "botId": { "type": "string" },
+        "userId": { "type": "string" },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "lastMessageAt": { "type": "string", "format": "date-time" },
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "role": { "type": "string", "enum": ["user", "bot"] },
+              "text": { "type": "string" },
+              "timestamp": { "type": "string", "format": "date-time" }
+            }
+          }
+        }
+      },
+      "required": ["botId", "userId", "startedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/bots/{botId}": {
+      "schema": "Bot",
+      "description": "Bot configuration documents"
+    },
+    "/bots/{botId}/knowledge/{knowledgeId}": {
+      "schema": "KnowledgeBase",
+      "description": "Knowledge base entries for a bot"
+    },
+    "/bots/{botId}/chats/{chatId}": {
+      "schema": "ChatSession",
+      "description": "Chat history sessions for a bot"
+    }
+  }
+}
