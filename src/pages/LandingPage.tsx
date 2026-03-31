@@ -225,10 +225,37 @@ export default function LandingPage() {
             © 2026 Botub. All rights reserved.
           </p>
           <div className="flex space-x-6">
-            <a href="https://www.instagram.com/aytech_solution/" className="text-gray-400 hover:text-brand-primary transition-colors"><Instagram className="w-5 h-5" /></a>
-            <a href="https://wa.me/917742065298?text=Hello%20Botub!%20I%20need%20help%20with%20Botub%20Site" className="text-gray-400 hover:text-brand-primary transition-colors"><WhatsApp className="w-5 h-5" /></a>
-            <a href="https://www.facebook.com/share/1GdHzYqBo1/" className="text-gray-400 hover:text-brand-primary transition-colors"><Facebook className="w-5 h-5" /></a>
-          </div>
+  <a 
+    href="https://www.instagram.com/aytech_solution/" 
+    target="_blank" 
+    rel="noopener noreferrer"
+    aria-label="Instagram"
+    className="text-gray-400 hover:text-brand-primary transition-colors"
+  >
+    <Instagram className="w-5 h-5" />
+  </a>
+  
+  <a 
+    href="https://wa.me/917742065298?text=Hello%20Botub!%20I%20need%20help%20with%20Botub%20Site" 
+    target="_blank" 
+    rel="noopener noreferrer"
+    aria-label="WhatsApp"
+    className="text-gray-400 hover:text-brand-primary transition-colors"
+  >
+    <WhatsApp className="w-5 h-5" />
+  </a>
+  
+  <a 
+    href="https://www.facebook.com/share/1GdHzYqBo1/" 
+    target="_blank" 
+    rel="noopener noreferrer"
+    aria-label="Facebook"
+    className="text-gray-400 hover:text-brand-primary transition-colors"
+  >
+    <Facebook className="w-5 h-5" />
+  </a>
+</div>
+          
         </div>
       </footer>
     </div>
