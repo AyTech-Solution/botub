@@ -1,0 +1,17 @@
+{
+  "headers": [
+    {
+      "source": "/bot-widget.js",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Content-Type", "value": "application/javascript" }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/bot-widget.js",
+      "destination": "/bot-widget.js"
+    }
+  ]
+}
