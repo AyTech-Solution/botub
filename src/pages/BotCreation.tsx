@@ -106,7 +106,9 @@ export default function BotCreation() {
   const [botCount, setBotCount] = useState(0);
   const [createdBotId, setCreatedBotId] = useState('');
   const [isFinishing, setIsFinishing] = useState(false);
-  const [scannedSuggestions, setScannedSuggestions] = useState<{text: string, url: string}[]>([]);
+  const [scannedSuggestions, setScannedSuggestions] = useState<{text: string, url: string, isTip?: boolean}[]>([]);
+  const [tipToFix, setTipToFix] = useState<string | null>(null);
+  const [tipValue, setTipValue] = useState('');
   
   // New Premium Features State
   const [personality, setPersonality] = useState('professional');
@@ -210,7 +212,10 @@ export default function BotCreation() {
       });
 
       if (missingTips && missingTips.length > 0) {
-         setScannedSuggestions(prev => [...prev, ...missingTips.map(t => ({ text: `TIP: ${t}`, url: '' }))]);
+         setScannedSuggestions(prev => [
+           ...prev, 
+           ...missingTips.map((t: string) => ({ text: t, url: '', isTip: true }))
+         ]);
       }
 
       toast.success("Website analysis successful!");
@@ -654,17 +659,81 @@ export default function BotCreation() {
                           <p className="text-xs font-bold">Successfully extracted data</p>
                         </div>
                         {scannedSuggestions.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {scannedSuggestions.map((s, i) => (
-                              <button
-                                key={i}
-                                onClick={() => s.url && setWebsiteUrl(s.url)}
-                                disabled={!s.url}
-                                className={`px-2 py-1 rounded text-[9px] font-bold ${s.url ? 'bg-white border border-emerald-200 text-emerald-600' : 'bg-indigo-600 text-white'}`}
-                              >
-                                {s.text}
-                              </button>
-                            ))}
+                          <div className="flex flex-col space-y-3 mt-4">
+                            <p className="text-[10px] font-black text-indigo-900 uppercase tracking-widest">Recommended Actions:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {scannedSuggestions.map((s, i) => (
+                                <div key={i} className="flex items-center">
+                                  {s.isTip ? (
+                                    <button
+                                      onClick={() => {
+                                        setTipToFix(s.text);
+                                        setTipValue('');
+                                      }}
+                                      className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-[10px] font-bold shadow-sm hover:bg-indigo-700 transition-all flex items-center space-x-1"
+                                    >
+                                      <Zap className="w-2.5 h-2.5 mr-1" />
+                                      <span>Add: {s.text.replace('missing', '').trim()}</span>
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => s.url && setWebsiteUrl(s.url)}
+                                      disabled={!s.url}
+                                      className="px-3 py-1.5 rounded-lg bg-white border border-emerald-200 text-emerald-600 text-[10px] font-bold shadow-sm hover:bg-emerald-50 transition-all"
+                                    >
+                                      {s.text}
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+
+                            <AnimatePresence>
+                              {tipToFix && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm mt-3"
+                                >
+                                  <div className="flex items-center justify-between mb-2">
+                                    <p className="text-[10px] font-bold text-indigo-900">ENTER DETAILS FOR: <span className="text-indigo-600 uppercase">{tipToFix}</span></p>
+                                    <button onClick={() => setTipToFix(null)}><X className="w-3 h-3 text-gray-400" /></button>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <input
+                                      autoFocus
+                                      type="text"
+                                      placeholder={`Enter ${tipToFix.replace('missing', '').trim()} here...`}
+                                      value={tipValue}
+                                      onChange={(e) => setTipValue(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          const info = `${tipToFix}: ${tipValue}`;
+                                          setDetails(prev => prev + "\n" + info);
+                                          setScannedSuggestions(prev => prev.filter(s => s.text !== tipToFix));
+                                          setTipToFix(null);
+                                          toast.success("Added to knowledge base!");
+                                        }
+                                      }}
+                                      className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    <button
+                                      onClick={() => {
+                                        const info = `${tipToFix}: ${tipValue}`;
+                                        setDetails(prev => prev + "\n" + info);
+                                        setScannedSuggestions(prev => prev.filter(s => s.text !== tipToFix));
+                                        setTipToFix(null);
+                                        toast.success("Added to knowledge base!");
+                                      }}
+                                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold"
+                                    >
+                                      Add
+                                    </button>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
                           </div>
                         )}
                       </div>

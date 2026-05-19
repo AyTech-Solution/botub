@@ -143,27 +143,31 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `CONVERSATION HISTORY:
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: `CONTEXT: You are the lead business representative for this company. You have access to the OFFICIAL RECORDS below. Your goal is to answer users perfectly using these records.
+
+OFFICIAL BUSINESS RECORDS:
+${hasKnowledge ? cleanKB : 'No records yet. Just be a friendly greeting bot.'}
+
+STRICT BRAND RULES:
+- TONE: ${personality}
+- VOICE: Natural, human-like, helpful. Do NOT say "according to the records".
+- LANGUAGE: Mirror the user (Hinglish/English/Hindi).
+- IDENTITY: You represent the company as "We/Us".
+- UNKNOWN: If the info isn't in RECORDS, say: "I don't have that specific detail yet, but I can help you with anything else or you can reach us at our contact point."
+- CUSTOM DIRECTIONS: ${customInstructions || 'None'}
+
+CONVERSATION HISTORY:
 ${historyContext || 'New session'}
 
-USER MESSAGE:
-${query}`,
+USER QUERY: ${query}` }]
+        }
+      ],
       config: {
-        systemInstruction: `You are the Official AI Business Ambassador. Your mission is to provide accurate, helpful, and natural responses based on the provided records.
-
-BUSINESS RECORDS (Source of Truth):
-${hasKnowledge ? cleanKB : 'No specific records available. Greet the user and ask how you can help.'}
-
-TONE: ${personality}
-CUSTOM BRAND GUIDELINES: ${customInstructions || 'None'}
-
-RESPONSE GUIDELINES:
-1. NATURAL VOICE: Do not sound like a machine. Avoid "According to the document". Just answer.
-2. HINGLISH: If the user speaks Hinglish/Hindi, respond in warm, professional Hinglish. e.g., "Ji haan, hum ye provide karte hain."
-3. IDENTITY: You ARE the business team. Use "We", "Us", "Our".
-4. ACCURACY: Do not hallucinate. If info isn't in RECORDS, politely say you don't know but offer contact info.`,
-        temperature: 0.8,
-        topP: 0.9,
+        temperature: 0.7,
+        topP: 0.8,
         maxOutputTokens: 1000,
       }
     });
@@ -185,17 +189,17 @@ async function geminiAnalyze(text: string, title: string, description: string) {
   try {
     const response = await ai.models.generateContent({ 
       model: "gemini-3-flash-preview",
-      contents: `You are an Expert Business Data Architect. Analyze the raw text and structure it into a perfect Knowledge Base for a Customer Support Bot.
+      contents: `You are an Expert Business Consultant and Data Architect. Analyze the raw text and structure it into a perfect Knowledge Base.
 
 TASK:
-1. Extract Company Name, Essential Services, Pricing (if any), Contact Numbers, and FAQs.
-2. If info is missing (like specific pricing), mention "Ask for details" but flag it in missingTips.
-3. Format as clean, readable Markdown.
+1. Extract Company Name, Essential Services, Pricing, Contact Numbers, WhatsApp, Email, Refund Policy, and FAQs.
+2. IMPORTANT: If any of these are MISSING from the text, you MUST list them as specific, actionable tips in "missingTips".
+3. Each Tip should be short, like: "WhatsApp number missing", "Pricing for service X is unclear", "Refund policy not found".
 
 OUTPUT JSON FORMAT ONLY:
 {
   "knowledgeBase": "Markdown text...",
-  "missingTips": ["Tip: Add WhatsApp number"],
+  "missingTips": ["Tip 1", "Tip 2"],
   "businessName": "Company Name"
 }
 
