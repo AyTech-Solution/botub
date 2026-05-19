@@ -55,13 +55,12 @@ async function internalSendEmail({ to, subject, text, html }: { to: string; subj
 }
 
 // --- DETERMINISTIC ANALYSIS ENGINE (SLM) ---
-function roughScrapAnalysis(text: string, title: string, metaDescription: string) {
+function roughScrapAnalysis(text: string, title: string, metaDescription: string): { knowledgeBase: string, missingTips: string[], businessName: string } {
   const safeText = (text || '').replace(/\s\s+/g, ' ').trim();
   
   // Extract patterns efficiently
   const emails = Array.from(safeText.matchAll(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g)).map(m => m[0]);
   const uniqueEmails = [...new Set(emails)];
-
   const phones = Array.from(safeText.matchAll(/(\+?\d{1,3}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,5}/g)).map(m => m[0]);
   const uniquePhones = [...new Set(phones)].filter(p => p.length >= 10);
 
@@ -76,7 +75,7 @@ function roughScrapAnalysis(text: string, title: string, metaDescription: string
            low.includes('policy');
   }).slice(0, 40);
 
-  return `
+  const kb = `
 --- BUSINESS KNOWLEDGE BASE ---
 BUSINESS: ${title || 'Business'}
 ABOUT: ${metaDescription || 'Information provided via manual entry or website scan.'}
@@ -94,6 +93,12 @@ CONTACT INFO:
 ADDITIONAL RAW CONTENT:
 ${safeText.substring(0, 10000)}
   `.trim();
+
+  return {
+    knowledgeBase: kb,
+    missingTips: uniquePrices.length === 0 ? ["Add specific pricing details"] : [],
+    businessName: title || ""
+  };
 }
 
 function roughScrapChat(query: string, knowledgeBase: string, personality: string) {
@@ -183,36 +188,60 @@ ${query}`;
 
 async function geminiAnalyze(text: string, title: string, description: string) {
   if (!ai) return roughScrapAnalysis(text, title, description);
-
+  
   try {
     const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
     const response = await model.generateContent(`Act as an Expert Knowledge Architect & Business Analyst.
 Analyze the following raw text extracted from a business website or document. 
-Create a highly structured, professional, and comprehensive Knowledge Base that will be used to train a Customer Support AI.
+Create a highly structured Knowledge Base for a business AI Chatbot.
 
-SOURCE TITLE: ${title}
-SOURCE DESCRIPTION: ${description}
+SOURCE: ${title} (${description})
 
 RAW CONTENT:
 ${text.substring(0, 20000)}
 
 YOUR TASK:
-1. SUMMARY: Briefly describe what the business does.
-2. CORE SERVICES/PRODUCTS: List everything offered with key features/benefits.
-3. PRICING: Extract all precise numbers, plans, and currency details found.
-4. POLICIES: Identify Refund, Privacy, or Cancellation terms if present (use headings).
-5. CONTACT: Extract all Emails, Phone numbers (WhatsApp), Locations, and Social links.
-6. FAQ: Create 5-8 helpful Question & Answer pairs based ON the text.
+1. TRANSFORM the raw text into a professional, clear, and comprehensive Knowledge Base.
+2. SECTIONS to include: # Overview, # Services & Products, # Pricing, # Contact Details, # FAQs, # Policies.
+3. MISSING INFO: Identify what important information is MISSING from the text (e.g., precise pricing, WhatsApp number, specific policies, refund info).
 
 OUTPUT FORMAT:
-- Use clean Markdown with headers (# , ##).
-- Use Bullet points for features.
-- Keep it factual. Do NOT add info not in the source.
-- Ensure the result is formatted for another AI to read easily.`);
-    return response.response.text() || roughScrapAnalysis(text, title, description);
+Return a JSON object with this exact structure:
+{
+  "knowledgeBase": "Markdown formatted KB content...",
+  "missingTips": ["Tip 1: Add your WhatsApp number", "Tip 2: Define your refund policy..."],
+  "businessName": "Detected Business Name"
+}
+
+RULES:
+- Be factual. Do not invent details.
+- If pricing isn't found, state "Available on request" in KB but add it to missingTips.
+- Use natural, professional language.`);
+    
+    const responseText = response.response.text();
+    // Try to parse JSON from Markdown code block or raw
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch (e) {
+        console.error("JSON Parse Error on Gemini output:", e);
+      }
+    }
+    
+    // Fallback if JSON fails
+    return { 
+      knowledgeBase: responseText || roughScrapAnalysis(text, title, description),
+      missingTips: ["Please verify the and refine the details extracted."],
+      businessName: title
+    };
   } catch (err) {
     console.error("Gemini Analyze Error:", err);
-    return roughScrapAnalysis(text, title, description);
+    return {
+      knowledgeBase: roughScrapAnalysis(text, title, description),
+      missingTips: ["Manual verification recommended due to scanner interruption."],
+      businessName: title
+    };
   }
 }
 
@@ -296,9 +325,18 @@ apiRouter.post("/analyze-website", async (req, res) => {
 
     if (!response || !response.data || response.data.length < 100) {
       const status = response?.status || 500;
-      return res.status(status).json({ 
-        error: `Scanner Blocked (Code ${status})`, 
-        suggestion: "The website's security system is blocking automated AI scans. Try copying the text from 'About', 'Pricing' and 'Services' and pasting it below." 
+      return res.json({ 
+        result: {
+          knowledgeBase: "",
+          missingTips: [
+            "SCAN BLOCKED: Website protection prevents auto-scanning.",
+            "Manual Input Needed: Please paste 'Services' & 'Pricing' text below.",
+            "Contact Info: Manually add your WhatsApp/Email info."
+          ],
+          businessName: ""
+        },
+        title: "Scanning Blocked",
+        crawledCount: 0
       });
     }
 

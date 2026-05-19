@@ -178,16 +178,27 @@ export default function BotCreation() {
     setAnalysisResult('');
     try {
       const data = await analyzeWebsite(websiteUrl);
-      const result = data.result;
-      setAnalysisResult(result);
+      const { knowledgeBase, missingTips, businessName } = data.result;
+      
+      setAnalysisResult(knowledgeBase);
       if (data.suggestions) {
         setScannedSuggestions(data.suggestions);
       }
+      
+      if (businessName && !botName) {
+        setBotName(businessName);
+      }
+
       setDetails(prev => {
         const base = prev.trim();
         const header = `--- KNOWLEDGE FROM ${websiteUrl.toUpperCase()} ---`;
-        return base ? `${base}\n\n${header}\n${result}` : `${header}\n${result}`;
+        return base ? `${base}\n\n${header}\n${knowledgeBase}` : `${header}\n${knowledgeBase}`;
       });
+
+      if (missingTips && missingTips.length > 0) {
+         setScannedSuggestions(prev => [...prev, ...missingTips.map(t => ({ text: `TIP: ${t}`, url: '' }))]);
+      }
+
       toast.success("Website analyzed and structured!");
     } catch (err: any) {
       console.error("Analysis Exception:", err);
@@ -195,16 +206,13 @@ export default function BotCreation() {
       let msg = err.message || 'Analysis failed.';
       let sug = err.suggestion || "You can skip the scan and paste your website info manually below to proceed instantly.";
 
-      if (err.message?.includes('504') || err.message?.includes('Timeout') || err.message?.includes('8000') || err.message?.includes('15000')) {
+      if (err.message?.includes('Timeout') || err.message?.includes('8000') || err.message?.includes('15000')) {
         msg = "The website is responding too slowly (Network Timeout).";
         sug = "Site response time exceeded our cloud limit. Please copy the text from your website and paste it manually below.";
       } else if (err.message?.includes('403')) {
-        msg = "Access Blocked (403 Forbidden).";
-        sug = "This website blocks automated scanners like ours. Please paste the content manually below.";
-      } else if (err.message?.includes('422')) {
-        msg = "Scanning limitation.";
-        sug = "The website structure prevents automated scanning. Please paste the info manually.";
-      } else if (err.message?.includes('500') || err.message?.includes('Scanner connection issue') || err.message?.includes('restricted access')) {
+        msg = "Access Forbidden (403).";
+        sug = "This website is blocking our scanner. Please paste the content manually into the details box below—it's the fastest way!";
+      } else if (err.message?.includes('Scanner Blocked') || err.message?.includes('Restricted')) {
         msg = "Website Scanner Blocked.";
         sug = "The website is protecting itself from automated scans. Don't worry—just copy the text from your website and paste it into the details box below to continue!";
       }
@@ -789,19 +797,26 @@ export default function BotCreation() {
 
                         {scannedSuggestions.length > 0 && (
                           <div className="mt-4 pt-4 border-t border-green-100">
-                             <p className="text-[10px] font-black text-green-800 uppercase tracking-widest mb-2">Suggested Links to Scan:</p>
+                             <p className="text-[10px] font-black text-green-800 uppercase tracking-widest mb-2">Improve Your Bot (Manual Input Needed):</p>
                              <div className="flex flex-wrap gap-2">
                                {scannedSuggestions.map((s, i) => (
                                  <button
                                    key={i}
                                    onClick={() => {
-                                      setWebsiteUrl(s.url);
-                                      setScannedSuggestions(prev => prev.filter((_, idx) => idx !== i));
+                                      if (s.url) {
+                                        setWebsiteUrl(s.url);
+                                        setScannedSuggestions(prev => prev.filter((_, idx) => idx !== i));
+                                      }
                                    }}
-                                   className="px-3 py-1.5 bg-white border border-green-200 rounded-lg text-[10px] font-bold text-green-700 hover:bg-green-100 transition-colors flex items-center shadow-sm"
+                                   disabled={!s.url}
+                                   className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center shadow-sm ${
+                                     s.url 
+                                       ? "bg-white border border-green-200 text-green-700 hover:bg-green-100" 
+                                       : "bg-indigo-600 text-white border border-indigo-700 cursor-default"
+                                   }`}
                                  >
-                                   <LinkIcon className="w-3 h-3 mr-1.5" />
-                                   Scan {s.text}
+                                   {s.url ? <LinkIcon className="w-3 h-3 mr-1.5" /> : <Zap className="w-3 h-3 mr-1.5" />}
+                                   {s.text}
                                  </button>
                                ))}
                              </div>
