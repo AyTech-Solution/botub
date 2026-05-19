@@ -6,6 +6,7 @@ import nodemailer from "nodemailer";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import "dotenv/config";
 import multer from "multer";
+import https from "https";
 // @ts-ignore
 import pdf from "pdf-parse";
 
@@ -146,24 +147,25 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
     // Format history for context
     const historyContext = chatHistory.slice(-6).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
 
-    const systemPrompt = `You are a professional, helpful, and very friendly AI assistant representing a business.
+    const systemPrompt = `You are the Official AI Business Assistant. Your primary directive is to be extremely helpful, professional, and warm, representing this business faithfully.
     
-BUSINESS KNOWLEDGE:
-${hasKnowledge ? cleanKB : 'No specific details provided yet. Greet the user warmly, introduce yourself as the business assistant, and offer to help with general questions.'}
+BUSINESS KNOWLEDGE (Your actual records):
+${hasKnowledge ? cleanKB : 'Greet the user warmly. Explain that you are the business assistant and offer to help with general questions. No specific details are available yet.'}
 
-TONE: ${personality}
-LANGUAGE PREFERENCE: ${primaryLanguage}
+TONE: ${personality} (Polite, Human-like, Professional)
+PREFERENCE: ${primaryLanguage}
 CUSTOM INSTRUCTIONS: ${customInstructions}
 
-BEHAVIORAL RULES:
-1. TALK LIKE A HUMAN. Be warm, polite, and helpful. Use a natural tone of voice.
-2. NO ROBOTIC PHRASES: Never say "based on the documents" or "I don't have access to that info". Instead say "I don't have that specific detail yet, but I can check for you" or "Aap humein call kar sakte hain details ke liye".
-3. MULTILINGUAL: If the user speaks Hindi or Hinglish, respond in natural, polite Hinglish. (e.g., "Hanji, kaise hain aap? Main aapki poori help karunga.").
-4. CONCISE & HELPFUL: Give direct answers. Don't repeat greetings if already in conversation.
-5. IDENTITY: You represent the company directly. Do NOT mention being an AI or a large language model.
+RESPONSE RULES (STRICT):
+1. NO ROBOTIC DISCLAIMERS: Never say "Based on the provided information". Just answer naturally, e.g. "Humare paas ye services hain..." or "As per my records...".
+2. MULTILINGUAL: If the user speaks Hindi or Hinglish (e.g. "kahan ho?", "help chahiye"), respond in conversational and polite Hinglish.
+3. CONCISE: Keep answers direct and helpful. Don't repeat yourself.
+4. IDENTITY: You represent the company. Use "We", "Us", "Our".
+5. IF UNKNOWN: Don't guess. Say "I don't have that specific detail yet, but you can reach us at our contact info for more help."
+6. NO AI MENTION: Never mention you are an AI or a language model.
 
 CONVERSATION HISTORY:
-${historyContext || 'No previous messages.'}
+${historyContext || 'Start of a new conversation'}
 
 USER MESSAGE:
 ${query}`;
@@ -184,24 +186,28 @@ async function geminiAnalyze(text: string, title: string, description: string) {
 
   try {
     const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const response = await model.generateContent(`Act as an Expert Knowledge Architect. Review the following raw text from a website/document and transform it into a highly organized, professional Knowledge Base for a business AI Chatbot.
+    const response = await model.generateContent(`Act as an Expert Knowledge Architect & Business Analyst.
+Analyze the following raw text extracted from a business website or document. 
+Create a highly structured, professional, and comprehensive Knowledge Base that will be used to train a Customer Support AI.
 
-SOURCE NAME: ${title}
+SOURCE TITLE: ${title}
 SOURCE DESCRIPTION: ${description}
 
 RAW CONTENT:
 ${text.substring(0, 20000)}
 
 YOUR TASK:
-1. Identify the core Business Focus (What do they do?).
-2. Extract all Products and Services with detailed features.
-3. Extract Pricing details, plans, and value propositions.
-4. Extract every contact detail (Emails, Phones, Locations, Social handles).
-5. Identify helpful FAQ pairs based on the text.
+1. SUMMARY: Briefly describe what the business does.
+2. CORE SERVICES/PRODUCTS: List everything offered with key features/benefits.
+3. PRICING: Extract all precise numbers, plans, and currency details found.
+4. POLICIES: Identify Refund, Privacy, or Cancellation terms if present (use headings).
+5. CONTACT: Extract all Emails, Phone numbers (WhatsApp), Locations, and Social links.
+6. FAQ: Create 5-8 helpful Question & Answer pairs based ON the text.
 
 OUTPUT FORMAT:
-- Use clean Markdown headers.
-- Be factual and concise.
+- Use clean Markdown with headers (# , ##).
+- Use Bullet points for features.
+- Keep it factual. Do NOT add info not in the source.
 - Ensure the result is formatted for another AI to read easily.`);
     return response.response.text() || roughScrapAnalysis(text, title, description);
   } catch (err) {
@@ -239,108 +245,130 @@ apiRouter.post("/analyze-website", async (req, res) => {
   console.log(`Starting scan for: ${url}`);
 
   try {
-    let response;
-    
-    // First Attempt: Modern Chrome on Windows
-    try {
-      response = await axios.get(url, {
-        headers: { 
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-          'Upgrade-Insecure-Requests': '1'
-        },
-        timeout: 15000,
-        maxRedirects: 5,
-        validateStatus: () => true
-      });
-    } catch (err) {
-      console.warn("Axios primary attempt failed:", (err as any).message);
-    }
+    let response: any = null;
+    const userAgents = [
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0'
+    ];
 
-    // Success Check & Retry Logic
-    if (!response || response.status >= 400 || !response.data || response.data.length < 500) {
-      console.log(`Primary attempt failed (Status ${response?.status}). Retrying with alternate headers...`);
+    const agent = new https.Agent({ rejectUnauthorized: false });
+
+    // Multi-agent retry logic with increasing wait times or different headers
+    for (const ua of userAgents) {
       try {
-        response = await axios.get(url, {
+        const res = await axios.get(url, {
           headers: { 
-            'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-            'Accept': '*/*',
+            'User-Agent': ua,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Referer': 'https://www.google.com/',
+            'Sec-Ch-Ua': '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'cross-site',
+            'Upgrade-Insecure-Requests': '1'
           },
-          timeout: 10000,
-          validateStatus: () => true
+          timeout: 12000,
+          maxRedirects: 10,
+          validateStatus: () => true,
+          httpsAgent: agent
         });
-      } catch (err) {
-         console.warn("Axios retry failed:", (err as any).message);
+
+        if (res.status === 200 && res.data && typeof res.data === 'string' && res.data.length > 800) {
+          response = res;
+          break;
+        }
+        
+        // Keep the best "failed" response to show status code if all fail
+        if (!response || (res.status < 400 && res.data?.length > (response.data?.length || 0))) {
+          response = res;
+        }
+      } catch (e) {
+        console.warn(`Attempt failed for ${ua.substring(0, 20)}...`);
       }
     }
 
-    if (!response || response.status >= 400 || !response.data || response.data.length < 100) {
-      const statusCode = response?.status || 500;
-      return res.status(statusCode).json({ 
-        error: `Access Restricted (Code ${statusCode})`, 
-        suggestion: "This website is blocking automated AI scanners. Please manually copy-paste the text from 'About Us', 'Pricing', and 'Services' pages into the details box to train your bot!" 
+    if (!response || !response.data || response.data.length < 100) {
+      const status = response?.status || 500;
+      return res.status(status).json({ 
+        error: `Scanner Blocked (Code ${status})`, 
+        suggestion: "The website's security system is blocking automated AI scans. Try copying the text from 'About', 'Pricing' and 'Services' and pasting it below." 
       });
     }
 
     const html = response.data;
     if (typeof html !== 'string') {
-      return res.status(422).json({ error: "Unexpected content type received from website." });
+      return res.status(422).json({ error: "Scanner received non-text data from the link." });
     }
 
     const $ = load(html);
     
-    // Clean up junk but keep some structure
-    $(`script, style, noscript, iframe, footer, nav, aside, svg, .sidebar, #sidebar, .footer, #footer, .cookie-banner, .ads, .popup`).remove();
+    // Check if it's a JS-heavy SPA shell
+    const bodyText = $('body').text().trim();
+    if (bodyText.length < 200 && html.includes('<script') && (html.toLowerCase().includes('javascript') || html.toLowerCase().includes('enable'))) {
+       return res.status(422).json({
+         error: "JavaScript Required",
+         suggestion: "This looks like a modern dynamic app. Our scanner can only read static text. Kripya manual content paste karein."
+       });
+    }
+
+    // Comprehensive clean up - ignore non-content elements
+    $(`script, style, noscript, iframe, footer, nav, aside, svg, .sidebar, #sidebar, .cookie-banner, .ads, .popup`).remove();
     
-    const title = $('title').text() || $('meta[property="og:title"]').attr('content') || 'Website';
-    const description = $('meta[name="description"]').attr('content') || '';
-       // Find the element with the most text if specific ones fail
-    const selectors = [
-      'main', 'article', '#content', '.content', '#main', '.main-content', 
-      '.entry-content', '.post-content', '.page-content', '.container', 'body'
-    ];
-    
-    let mainText = '';
-    for (const selector of selectors) {
-      const text = $(selector).text().trim();
-      if (text.length > 500) {
-        mainText = text;
-        break;
+    // Extract potential links for suggestions (Frontend can use this)
+    const extraLinks: { text: string; url: string }[] = [];
+    $('a').each((_, el) => {
+      const text = $(el).text().trim().toLowerCase();
+      const href = $(el).attr('href');
+      if (href && (text.includes('about') || text.includes('pricing') || text.includes('service') || text.includes('contact') || text.includes('plan')) && !href.startsWith('#')) {
+        try {
+          const absoluteUrl = new URL(href, url).toString();
+          if (absoluteUrl.startsWith(url) && extraLinks.length < 5) {
+            extraLinks.push({ text: $(el).text().trim(), url: absoluteUrl });
+          }
+        } catch (e) {}
       }
-    }
+    });
 
-    if (!mainText || mainText.length < 300) {
-      mainText = $('body').text();
+    const title = $('title').text() || $('meta[property="og:title"]').attr('content') || 'Business Website';
+    const description = $('meta[name="description"]').attr('content') || '';
+    
+    // Attempt structured text extraction to preserve hierarchy
+    let structuredText = "";
+    $('h1, h2, h3, p, li').each((_, el) => {
+      const tag = (el as any).name;
+      const text = $(el).text().trim();
+      if (text.length > 5) {
+        if (tag.startsWith('h')) structuredText += `\n[HEADER: ${text}]\n`;
+        else structuredText += `${text}\n`;
+      }
+    });
+
+    if (structuredText.length < 300) {
+      structuredText = $('body').text().replace(/\s\s+/g, ' ').replace(/\n\s*\n/g, '\n');
     }
     
-    // Better cleaning: remove excessive whitespace and repeated lines
-    mainText = mainText
-      .replace(/\s\s+/g, ' ')
-      .replace(/\n\s*\n/g, '\n')
-      .split('\n')
-      .map(l => l.trim())
-      .filter((l, i, arr) => l.length > 5 && arr.indexOf(l) === i)
-      .join('\n');
-
-    if (mainText.length < 50) {
+    if (structuredText.length < 100) {
       return res.status(422).json({ 
-        error: "Scanning limitation", 
-        suggestion: "This URL returns very little text content. It might be blocked or require JavaScript. Please paste the content manually into the details box." 
+        error: "Scanning Empty", 
+        suggestion: "We couldn't extract enough meaningful text. Please paste the info manually into the Knowledge box." 
       });
     }
 
-    console.log(`Scanned ${mainText.length} chars. Sending to Gemini for analysis...`);
-    // Gemini Analyze converts raw text into structured business KB
-    const result = await geminiAnalyze(mainText.substring(0, 20000), title, description);
-    res.json({ result, title, crawledCount: 1 });
+    console.log(`Successfully scanned ${structuredText.length} characters. Processing with Gemini...`);
+    const result = await geminiAnalyze(structuredText.substring(0, 18000), title, description);
+    res.json({ result, title, crawledCount: 1, suggestions: extraLinks });
   } catch (err: any) {
     console.error("Critical Scanner Error:", err);
     res.status(500).json({ 
-      error: "Connection Interrupted", 
-      suggestion: "The website connection failed or was refused. Please bypass this by manually pasting the text from your website into the details box."
+      error: "Scanner Connection Interrupted", 
+      suggestion: "Target site refused connection. Please paste the info manually."
     });
   }
 });
@@ -373,6 +401,17 @@ apiRouter.post("/parse-file", upload.single("file"), async (req, res) => {
   } catch (err) {
     console.error("File Parse Error:", err);
     res.status(500).json({ error: "Failed to parse file. Ensure it's not password protected." });
+  }
+});
+
+apiRouter.post("/analyze-text", async (req, res) => {
+  const { text, title } = req.body;
+  if (!text) return res.status(400).json({ error: "Text is required" });
+  try {
+    const result = await geminiAnalyze(text, title || "Manual Entry", "User provided business details");
+    res.json({ result });
+  } catch (err) {
+    res.status(500).json({ error: "Analysis failed" });
   }
 });
 

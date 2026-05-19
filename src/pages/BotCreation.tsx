@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { doc, setDoc, collection, addDoc, getDocs, query, where, getDoc } from 'firebase/firestore';
-import { analyzeWebsite, parseFile } from '../services/botService';
+import { analyzeWebsite, parseFile, analyzeText } from '../services/botService';
 import { 
   Bot, 
   Globe, 
@@ -109,6 +109,7 @@ export default function BotCreation() {
   const [createdBotId, setCreatedBotId] = useState('');
   const [isFinishing, setIsFinishing] = useState(false);
   const [fileUploading, setFileUploading] = useState(false);
+  const [scannedSuggestions, setScannedSuggestions] = useState<{text: string, url: string}[]>([]);
   
   // New Premium Features State
   const [personality, setPersonality] = useState('professional');
@@ -179,11 +180,15 @@ export default function BotCreation() {
       const data = await analyzeWebsite(websiteUrl);
       const result = data.result;
       setAnalysisResult(result);
+      if (data.suggestions) {
+        setScannedSuggestions(data.suggestions);
+      }
       setDetails(prev => {
         const base = prev.trim();
-        return base ? base + "\n\nExtracted from website (" + (data.crawledCount || 1) + " page):\n" + result : result;
+        const header = `--- KNOWLEDGE FROM ${websiteUrl.toUpperCase()} ---`;
+        return base ? `${base}\n\n${header}\n${result}` : `${header}\n${result}`;
       });
-      toast.success("Website analysis successful!");
+      toast.success("Website analyzed and structured!");
     } catch (err: any) {
       console.error("Analysis Exception:", err);
       
@@ -235,6 +240,24 @@ export default function BotCreation() {
       setFileUploading(false);
       // Reset input
       e.target.value = '';
+    }
+  };
+
+  const handleOptimizeText = async () => {
+    if (!details || details.length < 20) {
+      toast.error("Please enter more details to optimize.");
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const data = await analyzeText(details, botName || companyName);
+      setDetails(data.result);
+      toast.success("AI significantly improved your knowledge structure!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to optimize text.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -752,15 +775,38 @@ export default function BotCreation() {
                       <motion.div 
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
-                        className="p-4 bg-green-50 rounded-xl border border-green-100 flex items-start space-x-3"
+                        className="p-4 bg-green-50 rounded-xl border border-green-100"
                       >
-                        <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-xs font-bold text-green-700">Analysis Complete</p>
-                          <p className="text-[10px] text-green-600 mt-1">
-                            We've deep-scanned your site (visited multiple links) and extracted business intelligence.
-                          </p>
+                        <div className="flex items-start space-x-3">
+                          <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-bold text-green-700">Analysis Successful</p>
+                            <p className="text-[10px] text-green-600 mt-1">
+                              AI successfully structured your business details. {scannedSuggestions.length > 0 && "Found more relevant pages below."}
+                            </p>
+                          </div>
                         </div>
+
+                        {scannedSuggestions.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-green-100">
+                             <p className="text-[10px] font-black text-green-800 uppercase tracking-widest mb-2">Suggested Links to Scan:</p>
+                             <div className="flex flex-wrap gap-2">
+                               {scannedSuggestions.map((s, i) => (
+                                 <button
+                                   key={i}
+                                   onClick={() => {
+                                      setWebsiteUrl(s.url);
+                                      setScannedSuggestions(prev => prev.filter((_, idx) => idx !== i));
+                                   }}
+                                   className="px-3 py-1.5 bg-white border border-green-200 rounded-lg text-[10px] font-bold text-green-700 hover:bg-green-100 transition-colors flex items-center shadow-sm"
+                                 >
+                                   <LinkIcon className="w-3 h-3 mr-1.5" />
+                                   Scan {s.text}
+                                 </button>
+                               ))}
+                             </div>
+                          </div>
+                        )}
                       </motion.div>
                     )}
                   </div>
@@ -778,6 +824,14 @@ export default function BotCreation() {
                     </div>
                     {details.length > 0 && (
                        <div className="flex items-center space-x-2">
+                         <button 
+                           onClick={handleOptimizeText}
+                           disabled={loading}
+                           className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 uppercase tracking-widest hover:bg-indigo-100 transition-colors flex items-center"
+                         >
+                           {loading ? <Loader2 className="w-2 h-2 animate-spin mr-1" /> : <Zap className="w-2 h-2 mr-1" />}
+                           AI RE-STRUCTURE
+                         </button>
                          <span className="text-[9px] font-black text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-widest">
                            {details.length} chars indexed
                          </span>

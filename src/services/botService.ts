@@ -60,6 +60,33 @@ export async function parseFile(file: File) {
   }
 }
 
+export async function analyzeText(text: string, title?: string) {
+  try {
+    const fetchResponse = await fetch('/api/analyze-text', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, title })
+    });
+
+    if (!fetchResponse.ok) {
+      const respText = await fetchResponse.text();
+      let errorData;
+      try {
+        errorData = JSON.parse(respText);
+      } catch (e) {
+        throw new Error(`Server error (${fetchResponse.status})`);
+      }
+      throw new Error(errorData.error || 'Failed to analyze text');
+    }
+
+    const data = await fetchResponse.json();
+    return data;
+  } catch (err: any) {
+    console.error("Error analyzing text:", err);
+    throw err;
+  }
+}
+
 export async function generateBotResponse(
   prompt: string, 
   knowledgeBase: string, 
