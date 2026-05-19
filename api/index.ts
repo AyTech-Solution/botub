@@ -88,50 +88,25 @@ ${safeText.substring(0, 8000)}
 
 function roughScrapChat(query: string, knowledgeBase: string, personality: string) {
   if (!knowledgeBase || typeof knowledgeBase !== 'string' || knowledgeBase.length < 5) {
-    return "I'm still learning about this business. Please check back later or contact support.";
+    return "I'm still learning about this business. Please check back later.";
   }
 
   const lowQuery = query.toLowerCase();
-  const keywords = lowQuery.split(/\s+/).filter(w => w.length > 2);
-  
-  // Special Handling for Contacts
-  const contactKeywords = ['contact', 'call', 'email', 'phone', 'mobile', 'address', 'location', 'reach', 'number', 'mail'];
-  const isContactQuery = contactKeywords.some(k => lowQuery.includes(k));
+  const contactLines = knowledgeBase.split('\n').filter(l => 
+    l.toLowerCase().includes('email') || 
+    l.toLowerCase().includes('phone') || 
+    l.toLowerCase().includes('contact')
+  );
 
-  if (isContactQuery) {
-    const contactLines = knowledgeBase.split('\n').filter(l => l.includes('CONTACT INFO') || l.includes('Emails:') || l.includes('Phones:') || l.includes('Address:'));
-    if (contactLines.length > 0) {
-      return contactLines.join('\n').replace('- ', '').trim();
-    }
+  if (lowQuery.includes('contact') && contactLines.length > 0) {
+    return "You can reach us at:\n" + contactLines.join('\n');
   }
 
-  const lines = knowledgeBase.split('\n').filter(l => l.trim().length > 8 && !l.includes('---'));
-  
-  const matches = lines.map(line => {
-    let score = 0;
-    const lowLine = line.toLowerCase();
-    
-    keywords.forEach(word => {
-      if (lowLine.includes(word)) score += Math.pow(word.length, 1.5);
-    });
-
-    if (lowLine.includes(lowQuery)) score += 100;
-
-    return { line: line.trim(), score };
-  })
-  .filter(m => m.score > 10)
-  .sort((a, b) => b.score - a.score)
-  .slice(0, 3);
-
-  if (matches.length > 0) {
-    return Array.from(new Set(matches.map(m => m.line))).join('\n').trim();
-  }
-  
-  return "I'm sorry, I couldn't find a specific answer for that. Would you like to speak with a representative?";
+  return "I'm sorry, I couldn't find a specific answer using my legacy engine. Please ask about our services or try again later.";
 }
 
 // --- GEMINI AI ENGINE ---
-async function geminiChat(query: string, knowledgeBase: string, personality: string) {
+async function geminiChat(query: string, knowledgeBase: string, personality: string, customInstructions: string = '', primaryLanguage: string = 'auto') {
   // Strip robotic headers from old Slm versions if they exist in knowledgeBase
   const cleanKB = knowledgeBase
     .replace(/--- BOTUB SYSTEM KNOWLEDGE \(SLM GENERATED\) ---/g, '')
@@ -147,29 +122,31 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
     const model = ai.getGenerativeModel({ 
       model: "gemini-1.5-flash",
       generationConfig: {
-        temperature: 0.7,
-        topP: 0.8,
+        temperature: 0.85,
+        topP: 0.95,
         topK: 40,
         maxOutputTokens: 1024,
       }
     });
 
-    const response = await model.generateContent(`You are an intelligent, friendly AI assistant for a business.
+    const response = await model.generateContent(`You are an intelligent, helpful, and very human-like AI business assistant.
     
-BUSINESS KNOWLEDGE:
+BUSINESS DETAILS:
 ${cleanKB}
 
-USER QUESTION:
+USER'S MESSAGE:
 ${query}
 
 TONE/PERSONALITY: ${personality}
+PRIMARY LANGUAGE: ${primaryLanguage}
+CUSTOM INSTRUCTIONS: ${customInstructions}
 
-INSTRUCTIONS:
-1. Provide a natural, conversational response helping the user.
-2. Stick strictly to the knowledge provided. If you don't know the answer, politely say so in a natural way (e.g. "Currently, I don't have that specific information, but you can reach us at...")
-3. NEVER mention "the knowledge base", "the data", or "provided information". 
-4. Be concise but warm.
-5. You can speak in Hinglish (mixed Hindi/English) if the user does so.`);
+GUIDELINES:
+1. Speak naturally like a human assistant.
+2. Use ONLY the provided business details. Be honest if info is missing.
+3. Support Hinglish/Hindi naturally if the user uses it.
+4. Follow custom instructions strictly.
+5. NEVER mention "the data" or "the knowledge base".`);
     
     const text = response.response.text();
     return text || roughScrapChat(query, cleanKB, personality);
@@ -184,20 +161,13 @@ async function geminiAnalyze(text: string, title: string, description: string) {
 
   try {
     const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const response = await model.generateContent(`Act as a professional data analyst. Review the provided website content and create a highly detailed, clean Knowledge Base for a business AI.
+    const response = await model.generateContent(`Act as a professional data analyst. Review the provided website content and create a highly detailed Knowledge Base for a business AI.
 
 SOURCE: ${title} (${description})
 CONTENT:
 ${text.substring(0, 15000)}
 
-GOAL: Extract and structure the following in a clear, natural format:
-- Business Identity & Focus
-- All Product/Service specialized features and offerings
-- Pricing structures, plans, and value propositions
-- ALL Contact details (emails, phone, physical location, social handles)
-- Helpful FAQ based on the content
-
-IMPORTANT: Output only the structured knowledge, no conversational intro.`);
+GOAL: Extract every detail (Services, Pricing, Contact, FAQ, Hours) into a clean, searchable structure for another AI to use.`);
     return response.response.text() || roughScrapAnalysis(text, title, description);
   } catch (err) {
     console.error("Gemini Analyze Error:", err);
@@ -277,9 +247,15 @@ apiRouter.post("/analyze-website", async (req, res) => {
 });
 
 apiRouter.post("/chat", async (req, res) => {
-  const { prompt, knowledgeBase, personality } = req.body;
+  const { prompt, knowledgeBase, personality, customInstructions, primaryLanguage } = req.body;
   try {
-    const text = await geminiChat(prompt || '', knowledgeBase || '', personality || 'professional');
+    const text = await geminiChat(
+      prompt || '', 
+      knowledgeBase || '', 
+      personality || 'professional', 
+      customInstructions || '', 
+      primaryLanguage || 'auto'
+    );
     res.json({ text });
   } catch (err: any) {
     res.status(500).json({ error: "Execution Fail" });

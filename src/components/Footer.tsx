@@ -14,6 +14,11 @@ export default function Footer() {
           <div className="text-center">
             <span className="text-3xl font-black text-brand-dark tracking-tighter block">Botub</span>
             <span className="text-[10px] font-black text-brand-primary uppercase tracking-[0.3em] mt-1 block">AI Network</span>
+            <div className="flex items-center justify-center space-x-6 mt-4">
+              <Link to="/contact" className="text-xs font-bold text-gray-500 hover:text-indigo-600 uppercase tracking-widest">Contact</Link>
+              <Link to="/launch" className="text-xs font-bold text-gray-500 hover:text-indigo-600 uppercase tracking-widest">Launch</Link>
+              <Link to="/dashboard" className="text-xs font-bold text-gray-500 hover:text-indigo-600 uppercase tracking-widest">Dashboard</Link>
+            </div>
           </div>
           
           <div className="flex flex-col items-center md:items-end space-y-3">

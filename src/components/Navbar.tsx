@@ -49,6 +49,8 @@ export default function Navbar() {
                   Profile
                 </Link>
                 <Link to="/integration-guide" className="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors">Integration Guide</Link>
+                <Link to="/launch" className="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors">Launch</Link>
+                <Link to="/contact" className="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors">Contact</Link>
                 <button 
                   onClick={handleLogout}
                   className="flex items-center space-x-2 text-sm font-medium text-gray-600 hover:text-red-600 transition-colors"
@@ -101,6 +103,8 @@ export default function Navbar() {
           {user ? (
             <>
               <Link to="/dashboard" className="block text-base font-medium text-gray-600 hover:text-indigo-600">Dashboard</Link>
+              <Link to="/launch" className="block text-base font-medium text-gray-600 hover:text-indigo-600">Launch</Link>
+              <Link to="/contact" className="block text-base font-medium text-gray-600 hover:text-indigo-600">Contact</Link>
               <Link to="/account-settings" className="block text-base font-medium text-gray-600 hover:text-indigo-600">Profile</Link>
               <button 
                 onClick={handleLogout}

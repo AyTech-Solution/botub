@@ -17,6 +17,8 @@ const BotSettings = lazy(() => import('./pages/BotSettings'));
 const ChatHistory = lazy(() => import('./pages/ChatHistory'));
 const AccountSettings = lazy(() => import('./pages/AccountSettings'));
 const IntegrationGuide = lazy(() => import('./pages/IntegrationGuide'));
+const Contact = lazy(() => import('./pages/Contact'));
+const Launch = lazy(() => import('./pages/Launch'));
 
 function PageLoader() {
   return (
@@ -76,6 +78,23 @@ function AppContent() {
           <Routes>
             <Route path="/" element={user ? <Dashboard /> : <AuthPage />} />
             <Route path="/auth" element={<AuthPage />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route 
+              path="/launch" 
+              element={
+                <AuthGuard>
+                  <Launch />
+                </AuthGuard>
+              } 
+            />
+            <Route 
+              path="/launch/:botId" 
+              element={
+                <AuthGuard>
+                  <Launch />
+                </AuthGuard>
+              } 
+            />
             <Route 
               path="/integration-guide" 
               element={
