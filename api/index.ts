@@ -3,17 +3,15 @@ import axios from "axios";
 import { load } from "cheerio";
 import cors from "cors";
 import nodemailer from "nodemailer";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import "dotenv/config";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 // --- GEMINI AI CONFIG ---
-const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
-}) : null;
+const ai = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
 if (!process.env.GEMINI_API_KEY) {
   console.warn("CRITICAL: GEMINI_API_KEY is missing from environment. AI features will fallback to deterministic engine.");
@@ -70,29 +68,27 @@ function roughScrapAnalysis(text: string, title: string, metaDescription: string
   }).slice(0, 30);
 
   return `
---- BOTUB SYSTEM KNOWLEDGE (SLM GENERATED) ---
+BUSINESS NAME: ${title || 'Not specified'}
+PROFILE: ${metaDescription || 'No description found.'}
 
-SITE: ${title || 'Website'}
-DESC: ${metaDescription || 'Automated business profile extracted from live content.'}
+SERVICES/PRODUCTS:
+${products.length > 0 ? products.join('\n') : 'Details available in main content.'}
 
-INDEXED SERVICES/PRODUCTS:
-${products.length > 0 ? products.join('\n') : 'Broad content indexing active. No specific headers found.'}
+PRICING & OFFERS:
+${uniquePrices.length > 0 ? uniquePrices.join(', ') : 'Inquire for pricing details.'}
 
-INDEXED PRICING/OFFERS:
-${uniquePrices.length > 0 ? uniquePrices.join(', ') : 'Check full details for pricing information.'}
+CONTACT INFO:
+- Emails: ${uniqueEmails.join(', ') || 'Contact us through the website'}
+- Phones: ${uniquePhones.join(', ') || 'Phone support available'}
 
-CONTACT RECORDS:
-- Emails: ${uniqueEmails.join(', ') || 'Not found'}
-- Phones: ${uniquePhones.join(', ') || 'Not found'}
-
-KNOWLEDGE RAW DATA:
-${safeText.substring(0, 6000)}
+ADDITIONAL DETAILS:
+${safeText.substring(0, 8000)}
   `.trim();
 }
 
 function roughScrapChat(query: string, knowledgeBase: string, personality: string) {
   if (!knowledgeBase || typeof knowledgeBase !== 'string' || knowledgeBase.length < 5) {
-    return "Mera knowledge base abhi khali hai. Kripya settings mein jaakar details daalein.";
+    return "I'm still learning about this business. Please check back later or contact support.";
   }
 
   const lowQuery = query.toLowerCase();
@@ -103,13 +99,9 @@ function roughScrapChat(query: string, knowledgeBase: string, personality: strin
   const isContactQuery = contactKeywords.some(k => lowQuery.includes(k));
 
   if (isContactQuery) {
-    const contactSection = knowledgeBase.split('\n').find(l => l.includes('CONTACT RECORDS') || l.includes('Emails:') || l.includes('Phones:'));
-    if (contactSection) {
-      // Find the specific email/phone lines
-      const contactLines = knowledgeBase.split('\n').filter(l => l.includes('Emails:') || l.includes('Phones:') || l.includes('Address:'));
-      if (contactLines.length > 0) {
-        return contactLines.join('\n').replace('- ', '').trim();
-      }
+    const contactLines = knowledgeBase.split('\n').filter(l => l.includes('CONTACT INFO') || l.includes('Emails:') || l.includes('Phones:') || l.includes('Address:'));
+    if (contactLines.length > 0) {
+      return contactLines.join('\n').replace('- ', '').trim();
     }
   }
 
@@ -127,61 +119,63 @@ function roughScrapChat(query: string, knowledgeBase: string, personality: strin
 
     return { line: line.trim(), score };
   })
-  .filter(m => m.score > 0)
+  .filter(m => m.score > 10)
   .sort((a, b) => b.score - a.score)
-  .slice(0, 5);
+  .slice(0, 3);
 
   if (matches.length > 0) {
-    // Return only the most relevant unique lines without any prefix/suffix
-    const bestLines = Array.from(new Set(matches.map(m => m.line)));
-    return bestLines.join('\n').trim();
+    return Array.from(new Set(matches.map(m => m.line))).join('\n').trim();
   }
   
-  // Fallback for specific keyword phrases
-  if (knowledgeBase.toLowerCase().includes(lowQuery)) {
-    const index = knowledgeBase.toLowerCase().indexOf(lowQuery);
-    const snippet = knowledgeBase.substring(Math.max(0, index - 20), index + 500).split('\n')[0];
-    if (snippet.length > 10) return snippet.trim();
-  }
-
-  return "I couldn't find a specific answer for that. Please try asking about our services or contact details.";
+  return "I'm sorry, I couldn't find a specific answer for that. Would you like to speak with a representative?";
 }
 
 // --- GEMINI AI ENGINE ---
 async function geminiChat(query: string, knowledgeBase: string, personality: string) {
-  if (!ai) {
-    console.log("No AI instance, using roughScrapChat fallback");
-    return roughScrapChat(query, knowledgeBase, personality);
-  }
+  // Strip robotic headers from old Slm versions if they exist in knowledgeBase
+  const cleanKB = knowledgeBase
+    .replace(/--- BOTUB SYSTEM KNOWLEDGE \(SLM GENERATED\) ---/g, '')
+    .replace(/INDEXED SERVICES\/PRODUCTS:/g, 'SERVICES:')
+    .replace(/INDEXED PRICING\/OFFERS:/g, 'PRICING:')
+    .replace(/CONTACT RECORDS:/g, 'CONTACTS:')
+    .replace(/KNOWLEDGE RAW DATA:/g, 'ADDITIONAL INFO:')
+    .trim();
+
+  if (!ai) return roughScrapChat(query, cleanKB, personality);
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash", // Using 1.5-flash as it's highly stable
-      contents: `You are an AI chatbot for a business. Use the provided Knowledge Base to answer the user query concisely.
-      
-PERSONALITY: ${personality}
-KNOWLEDGE BASE:
-${knowledgeBase}
-
-USER QUERY: ${query}
-
-Rules:
-1. Only answer based on the knowledge base.
-2. If info is missing, say you don't know exactly but suggest contacting support.
-3. Keep it professional/natural based on personality.
-4. Do NOT include phrases like "According to the database".
-5. Use the user's language (Hindi/English mixing is OK).`,
+    const model = ai.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      generationConfig: {
+        temperature: 0.7,
+        topP: 0.8,
+        topK: 40,
+        maxOutputTokens: 1024,
+      }
     });
+
+    const response = await model.generateContent(`You are an intelligent, friendly AI assistant for a business.
     
-    if (!response.text) {
-       console.log("Gemini returned empty text, falling back");
-       return roughScrapChat(query, knowledgeBase, personality);
-    }
+BUSINESS KNOWLEDGE:
+${cleanKB}
+
+USER QUESTION:
+${query}
+
+TONE/PERSONALITY: ${personality}
+
+INSTRUCTIONS:
+1. Provide a natural, conversational response helping the user.
+2. Stick strictly to the knowledge provided. If you don't know the answer, politely say so in a natural way (e.g. "Currently, I don't have that specific information, but you can reach us at...")
+3. NEVER mention "the knowledge base", "the data", or "provided information". 
+4. Be concise but warm.
+5. You can speak in Hinglish (mixed Hindi/English) if the user does so.`);
     
-    return response.text;
+    const text = response.response.text();
+    return text || roughScrapChat(query, cleanKB, personality);
   } catch (err) {
     console.error("Gemini Chat Error:", err);
-    return roughScrapChat(query, knowledgeBase, personality);
+    return roughScrapChat(query, cleanKB, personality);
   }
 }
 
@@ -189,24 +183,22 @@ async function geminiAnalyze(text: string, title: string, description: string) {
   if (!ai) return roughScrapAnalysis(text, title, description);
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: `Analyze the following website content for a business and extract key information for an AI chatbot's knowledge base.
-      
-TITLE: ${title}
-DESCRIPTION: ${description}
+    const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const response = await model.generateContent(`Act as a professional data analyst. Review the provided website content and create a highly detailed, clean Knowledge Base for a business AI.
+
+SOURCE: ${title} (${description})
 CONTENT:
 ${text.substring(0, 15000)}
 
-Output a structured knowledge base. Include:
-1. Business Overview & Mission
-2. Comprehensive list of Services/Products with specific features
-3. Pricing plans, rates, and offer details
-4. Contact info (emails, phones, address, social media)
-5. FAQ potential data (common questions and answers)
-6. Business hours or location if found`,
-    });
-    return response.text || roughScrapAnalysis(text, title, description);
+GOAL: Extract and structure the following in a clear, natural format:
+- Business Identity & Focus
+- All Product/Service specialized features and offerings
+- Pricing structures, plans, and value propositions
+- ALL Contact details (emails, phone, physical location, social handles)
+- Helpful FAQ based on the content
+
+IMPORTANT: Output only the structured knowledge, no conversational intro.`);
+    return response.response.text() || roughScrapAnalysis(text, title, description);
   } catch (err) {
     console.error("Gemini Analyze Error:", err);
     return roughScrapAnalysis(text, title, description);
@@ -217,7 +209,11 @@ Output a structured knowledge base. Include:
 
 const apiRouter = express.Router();
 
-apiRouter.get("/health", (req, res) => res.json({ status: "ok", engine: "SLM v2 PRO" }));
+apiRouter.get("/health", (req, res) => res.json({ 
+  status: "ok", 
+  engine: ai ? "Gemini 1.5 Flash" : "Deterministic SLM",
+  ai_ready: !!ai
+}));
 
 apiRouter.post("/send-report", async (req, res) => {
   const { email, reportContent, subject } = req.body;

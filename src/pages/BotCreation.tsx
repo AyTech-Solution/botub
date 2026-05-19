@@ -328,7 +328,7 @@ export default function BotCreation() {
       setIsFinishing(true);
       setTimeout(() => {
         setIsFinishing(false);
-        setStep(5);
+        setStep(4);
       }, 3500);
     } catch (err: any) {
       console.error("Bot creation error:", err);
