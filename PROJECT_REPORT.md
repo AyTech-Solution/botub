@@ -2,7 +2,7 @@
 ## Domain-Specific Intelligent Chatbot Engine
 
 **Project Type:** Minor Project (Web Development & Artificial Intelligence)
-**Developer:** Aayush Kumar (AyTech Solution)
+**Developer:** Aayush Kumawat (AyTech Solution)
 
 ---
 

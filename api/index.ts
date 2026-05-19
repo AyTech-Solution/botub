@@ -1,100 +1,147 @@
 import express, { Request, Response, NextFunction } from "express";
 import axios from "axios";
-import * as cheerio from "cheerio";
+import { load } from "cheerio";
 import cors from "cors";
-import { sendEmail } from "./mailing/service";
+import nodemailer from "nodemailer";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Deterministic Analysis Engine
+// --- MAILING LOGIC (Merged to prevent Vercel import issues) ---
+const port = parseInt(process.env.SMTP_PORT || "587");
+const isSecure = process.env.SMTP_SECURE === "true" || port === 465;
+
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || "smtp.gmail.com",
+  port,
+  secure: isSecure,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+  tls: { rejectUnauthorized: false }
+});
+
+async function internalSendEmail({ to, subject, text, html }: { to: string; subject: string; text?: string; html?: string }) {
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    throw new Error("SMTP credentials missing");
+  }
+  return await transporter.sendMail({
+    from: process.env.SMTP_USER,
+    to,
+    subject,
+    text,
+    html,
+  });
+}
+
+// --- DETERMINISTIC ANALYSIS ENGINE (SLM) ---
 function roughScrapAnalysis(text: string, title: string, metaDescription: string) {
-  const emails = Array.from(text.matchAll(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g)).map(m => m[0]);
+  const safeText = text || '';
+  
+  // Extract patterns efficiently
+  const emails = Array.from(safeText.matchAll(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g)).map(m => m[0]);
   const uniqueEmails = [...new Set(emails)];
 
-  const phones = Array.from(text.matchAll(/(\+\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}/g)).map(m => m[0]);
+  const phones = Array.from(safeText.matchAll(/(\+\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}/g)).map(m => m[0]);
   const uniquePhones = [...new Set(phones)];
 
-  const pricingMatches = Array.from(text.matchAll(/(\$\s?\d+(?:\.\d{2})?|\d+\s?USD|\d+\s?INR|\d+\s?Rs|₹\s?\d+)/gi)).map(m => m[0]);
-  const uniquePrices = [...new Set(pricingMatches)].slice(0, 8);
+  const pricingMatches = Array.from(safeText.matchAll(/(\$\s?\d+(?:\.\d{2})?|\d+\s?USD|\d+\s?INR|\d+\s?Rs|₹\s?\d+)/gi)).map(m => m[0]);
+  const uniquePrices = [...new Set(pricingMatches)].slice(0, 10);
 
-  const sections = text.split('\n');
-  const products = sections.filter(l => 
-    l.toLowerCase().includes('plan') || 
-    l.toLowerCase().includes('feature') || 
-    l.toLowerCase().includes('service') || 
-    l.toLowerCase().includes('module')
-  ).slice(0, 15);
+  const sections = safeText.split('\n').filter(l => l.trim().length > 5);
+  const products = sections.filter(l => {
+    const lowLine = l.toLowerCase();
+    return lowLine.includes('plan') || lowLine.includes('feature') || 
+           lowLine.includes('service') || lowLine.includes('product') ||
+           lowLine.includes('pricing') || lowLine.includes('offer');
+  }).slice(0, 30);
 
   return `
---- BOTUB KNOWLEDGE BASE (SLM ENGINE) ---
+--- BOTUB SYSTEM KNOWLEDGE (SLM GENERATED) ---
 
-BUSINESS/SITE NAME: ${title || 'Website'}
-SUMMARY: ${metaDescription || 'Information extracted from the homepage.'}
+SITE: ${title || 'Website'}
+DESC: ${metaDescription || 'Automated business profile extracted from live content.'}
 
-SERVICES & FEATURES FOUND:
-${products.length > 0 ? products.join('\n') : 'No specific service headers found, but internal data is indexed below.'}
+INDEXED SERVICES/PRODUCTS:
+${products.length > 0 ? products.join('\n') : 'Broad content indexing active. No specific headers found.'}
 
-PRICING & OFFERS IDENTIFIED:
-${uniquePrices.length > 0 ? uniquePrices.join(', ') : 'No clear pricing found. (Check manual details below)'}
+INDEXED PRICING/OFFERS:
+${uniquePrices.length > 0 ? uniquePrices.join(', ') : 'Check full details for pricing information.'}
 
-CONTACT & CONNECT:
-- Emails: ${uniqueEmails.join(', ') || 'Not explicitly found'}
-- Phones: ${uniquePhones.join(', ') || 'Not explicitly found'}
+CONTACT RECORDS:
+- Emails: ${uniqueEmails.join(', ') || 'Not found'}
+- Phones: ${uniquePhones.join(', ') || 'Not found'}
 
-CORE CONTENT DATA:
-${text.substring(0, 4000)}
+KNOWLEDGE RAW DATA:
+${safeText.substring(0, 6000)}
   `.trim();
 }
 
 function roughScrapChat(query: string, knowledgeBase: string, personality: string) {
+  if (!knowledgeBase || typeof knowledgeBase !== 'string' || knowledgeBase.length < 5) {
+    return "Mera knowledge base abhi khali hai. Kripya meri settings mein website info ya custom text daalein taaki main aapki behtar madad kar sakun.";
+  }
+
   const lowQuery = query.toLowerCase();
   const keywords = lowQuery.split(/\s+/).filter(w => w.length > 2);
-  const lines = knowledgeBase.split('\n').filter(l => l.trim().length > 10);
+  const lines = knowledgeBase.split('\n').filter(l => l.trim().length > 8);
   
   const matches = lines.map(line => {
     let score = 0;
     const lowLine = line.toLowerCase();
+    
     keywords.forEach(word => {
-      if (lowLine.includes(word)) score += word.length;
+      if (lowLine.includes(word)) score += Math.pow(word.length, 1.4);
     });
-    if (lowLine.includes(lowQuery)) score += 30;
-    return { line, score };
+
+    if (lowLine.includes(lowQuery)) score += 60;
+
+    return { line: line.trim(), score };
   })
   .filter(m => m.score > 0)
   .sort((a, b) => b.score - a.score)
-  .slice(0, 6);
+  .slice(0, 10);
 
-  let baseResponse = "Verified system response based on our internal data:";
+  let baseResponse = "Based on our records:";
   const p = personality.toLowerCase();
-  if (p.includes('friendly')) baseResponse = "Hello! Here is what I found:";
-  else if (p.includes('professional')) baseResponse = "Based on the records, here is the information:";
+  if (p.includes('friendly')) baseResponse = "Hello! Here is what I found for you:";
+  else if (p.includes('professional')) baseResponse = "According to our validated database:";
 
   if (matches.length > 0) {
-    const uniqueLines = Array.from(new Set(matches.map(m => m.line.trim()))).join('\n');
-    return `${baseResponse}\n\n${uniqueLines}\n\nAnything else?`;
+    const uniqueLines = Array.from(new Set(matches.map(m => m.line))).join('\n');
+    return `${baseResponse}\n\n${uniqueLines}\n\nIs there anything else you want to know? (Main aapki aur kis tarah se madad kar sakta hoon?)`;
   }
   
-  return `I'm analyzing your request. Based on our site records, search for specific terms like pricing, services, or contact info to get better results.`;
+  // Cross-lingual fallback check
+  if (knowledgeBase.toLowerCase().includes(lowQuery)) {
+    const index = knowledgeBase.toLowerCase().indexOf(lowQuery);
+    const snippet = knowledgeBase.substring(Math.max(0, index - 50), index + 400);
+    return `${baseResponse}\n\n...${snippet}...\n\nKya aapko aur jaankari chahiye?`;
+  }
+
+  return `I analyzed your question but couldn't find a direct match. Try using different keywords like pricing, contact, or specific service names. (Mujhe sahi jaankari nahi mili, kripya aur specific ho kar poochhein.)`;
 }
 
-// Routes
-app.get("/api/health", (req, res) => res.json({ status: "ok", service: "Botub Engine" }));
-app.get("/health", (req, res) => res.json({ status: "ok" }));
+// --- API ROUTES ---
 
-app.post("/api/send-report", async (req, res) => {
+const apiRouter = express.Router();
+
+apiRouter.get("/health", (req, res) => res.json({ status: "ok", engine: "SLM v2 PRO" }));
+
+apiRouter.post("/send-report", async (req, res) => {
   const { email, reportContent, subject } = req.body;
-  if (!email || !reportContent) return res.status(400).json({ error: "Required fields missing" });
+  if (!email || !reportContent) return res.status(400).json({ error: "Missing fields" });
   try {
-    await sendEmail({ to: email, subject: subject || "Botub Report", text: reportContent });
+    await internalSendEmail({ to: email, subject: subject || "Botub Analysis", text: reportContent });
     res.json({ success: true });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Email Error" });
   }
 });
 
-app.post("/api/analyze-website", async (req, res) => {
+apiRouter.post("/analyze-website", async (req, res) => {
   let { url } = req.body;
   if (!url) return res.status(400).json({ error: "URL is required" });
   if (!url.startsWith('http')) url = 'https://' + url;
@@ -102,60 +149,73 @@ app.post("/api/analyze-website", async (req, res) => {
   try {
     const response = await axios.get(url, {
       headers: { 
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-        'Accept': 'text/html,*/*',
-        'Accept-Language': 'en-US,en;q=0.9',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Cache-Control': 'no-cache'
       },
-      timeout: 6000,
-      maxRedirects: 3,
+      timeout: 8000,
+      maxRedirects: 5,
       validateStatus: () => true
     });
 
-    if (response.status >= 400) {
-      return res.status(response.status).json({ error: `Site returned ${response.status}`, suggestion: "Try another URL or paste content manually." });
+    if (response.status >= 400 && response.status !== 404) {
+      return res.status(response.status).json({ 
+        error: `Website restricted access (Status ${response.status})`, 
+        suggestion: "Cloud protection detected. Please paste website text manually." 
+      });
     }
 
-    const $ = cheerio.load(response.data);
+    const $ = load(response.data);
+    $(`script, style, noscript, iframe, footer, nav, aside, svg, .sidebar, #sidebar, .footer, #footer, .cookie-banner, .ads, .popup`).remove();
     
-    // Clean
-    $('script, style, noscript, iframe, footer, nav, aside').remove();
-    
-    const title = $('title').text() || 'Website';
+    const title = $('title').text() || $('meta[property="og:title"]').attr('content') || 'Website';
     const description = $('meta[name="description"]').attr('content') || '';
     
-    // Extract text specifically from content areas or body
-    let bodyText = $('main, article, #content, .content, body').text();
-    bodyText = bodyText.replace(/\s+/g, ' ').trim();
+    let mainText = $('main, article, #content, .content, body').text();
+    mainText = mainText.replace(/\s\s+/g, ' ').trim();
 
-    if (bodyText.length < 50) {
-      return res.status(422).json({ error: "Low Content", suggestion: "Site may be dynamic (React/Vue). Paste details manually." });
+    if (mainText.length < 50) {
+      return res.status(422).json({ 
+        error: "Dynamic Content Block", 
+        suggestion: "This site requires JavaScript to load. Kripya content manually copy-paste karein." 
+      });
     }
 
-    const result = roughScrapAnalysis(bodyText, title, description);
+    const result = roughScrapAnalysis(mainText, title, description);
     res.json({ result, title, crawledCount: 1 });
   } catch (err: any) {
-    res.status(500).json({ error: "Analysis Error", details: err.message });
+    res.status(500).json({ 
+      error: "Cloud Connection Issue", 
+      suggestion: "Target site blocked the scan. Manual entry recommended."
+    });
   }
 });
 
-app.post("/api/chat", async (req, res) => {
+apiRouter.post("/chat", async (req, res) => {
   const { prompt, knowledgeBase, personality } = req.body;
   try {
-    const text = roughScrapChat(prompt, knowledgeBase, personality);
+    const text = roughScrapChat(prompt || '', knowledgeBase || '', personality || 'professional');
     res.json({ text });
   } catch (err: any) {
-    res.status(500).json({ error: "Chat Error" });
+    res.status(500).json({ error: "Execution Fail" });
   }
 });
 
-app.get("/api/config-status", (req, res) => {
-  res.json({ hasFirebase: !!process.env.FIREBASE_PROJECT_ID, hasSmtp: !!process.env.SMTP_USER });
+apiRouter.get("/config-status", (req, res) => {
+  res.json({ 
+    server: "Vercel Production", 
+    db: !!process.env.FIREBASE_PROJECT_ID, 
+    mail: !!process.env.SMTP_USER 
+  });
 });
 
-// Error handling
+// Mount router on both /api and root to handle various Vercel/Local configurations
+app.use("/api", apiRouter);
+app.use("/", apiRouter);
+
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  console.error(err);
-  res.status(500).json({ error: "Platform Error", message: err.message });
+  console.error("Runtime Error:", err);
+  res.status(500).json({ error: "Platform Runtime Error" });
 });
 
 export default app;
