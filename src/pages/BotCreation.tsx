@@ -770,32 +770,45 @@ export default function BotCreation() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex flex-col">
-                      <label className="text-sm font-bold text-gray-700">Company Details</label>
-                      <p className="text-[10px] text-gray-400">Provide information about your services, products, and policies for the AI to learn.</p>
+                      <label className="text-sm font-black text-indigo-900 flex items-center">
+                        <Building2 className="w-4 h-4 mr-2" />
+                        MAIN BUSINESS KNOWLEDGE
+                      </label>
+                      <p className="text-[10px] text-gray-400 font-medium">Training Data: Feed your AI with About Us, Services, Pricing, and Policies.</p>
                     </div>
-                    {analysisResult && (
-                       <button 
-                         onClick={() => { setAnalysisResult(''); setDetails(''); }}
-                         className="text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline"
-                       >
-                         Clear Analysis
-                       </button>
+                    {details.length > 0 && (
+                       <div className="flex items-center space-x-2">
+                         <span className="text-[9px] font-black text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-widest">
+                           {details.length} chars indexed
+                         </span>
+                         <button 
+                           onClick={() => { setAnalysisResult(''); setDetails(''); }}
+                           className="text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline"
+                         >
+                           Clear
+                         </button>
+                       </div>
                     )}
                   </div>
-                  <div className="relative">
+                  <div className="relative group">
                     <textarea
-                      rows={8}
-                      placeholder="Describe your company, what you sell, common questions, and how to reach support. The more detail you provide, the better your bot will perform."
+                      rows={10}
+                      placeholder="Paste your content here:
+- What does your business do?
+- List of Services & Products
+- Pricing Details
+- Refund/Privacy Policies
+- Common Customer Questions
+- Contact Details (WhatsApp, Email)"
                       value={details}
                       onChange={(e) => setDetails(e.target.value)}
-                      className="w-full p-5 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none text-sm leading-relaxed"
+                      className="w-full p-5 bg-white border-2 border-indigo-50 rounded-2xl focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all resize-none text-sm leading-relaxed font-medium shadow-inner"
                     />
                     {!details && (
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
-                        <div className="text-center">
-                          <FileText className="w-10 h-10 mx-auto mb-2 text-gray-400" />
-                          <p className="text-xs font-bold text-gray-900 uppercase tracking-widest">Manual Paste Area</p>
-                        </div>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-20 group-hover:opacity-30 transition-opacity">
+                        <FileText className="w-12 h-12 mb-4 text-indigo-400" />
+                        <p className="text-xs font-black text-indigo-900 uppercase tracking-[0.2em]">Knowledge Hub</p>
+                        <p className="text-[10px] font-bold text-indigo-400 mt-2">Paste info from your Website or Docs here</p>
                       </div>
                     )}
                   </div>

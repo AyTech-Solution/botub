@@ -164,14 +164,15 @@ export default function WidgetPage() {
       const knowledgeContent = (knowledge || []).map(k => k.content).join('\n\n');
       const companyBio = bot.companyDetails || '';
       
-      const fullKnowledge = `${knowledgeContent}\n\nCOMPANY OVERVIEW & DETAILS:\n${companyBio}\n\nOFFICIAL LINKS:\n${(bot.links || []).join(', ')}`;
+      const fullKnowledge = `--- PRIMARY BUSINESS DETAILS ---\n${companyBio}\n\n--- ADDITIONAL KNOWLEDGE BASE ---\n${knowledgeContent}\n\n--- OFFICIAL LINKS ---\n${(bot.links || []).join(', ')}`;
       
       const response = await generateBotResponse(
         messageText, 
         fullKnowledge, 
         bot.personality || 'friendly', 
         bot.customInstructions || '', 
-        bot.primaryLanguage || 'auto'
+        bot.primaryLanguage || 'auto',
+        messages
       );
       
       const botMessage = {

@@ -55,7 +55,7 @@ async function internalSendEmail({ to, subject, text, html }: { to: string; subj
 
 // --- DETERMINISTIC ANALYSIS ENGINE (SLM) ---
 function roughScrapAnalysis(text: string, title: string, metaDescription: string) {
-  const safeText = text || '';
+  const safeText = (text || '').replace(/\s\s+/g, ' ').trim();
   
   // Extract patterns efficiently
   const emails = Array.from(safeText.matchAll(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g)).map(m => m[0]);
@@ -64,33 +64,34 @@ function roughScrapAnalysis(text: string, title: string, metaDescription: string
   const phones = Array.from(safeText.matchAll(/(\+?\d{1,3}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,5}/g)).map(m => m[0]);
   const uniquePhones = [...new Set(phones)].filter(p => p.length >= 10);
 
-  const pricingMatches = Array.from(safeText.matchAll(/(\$\s?\d+(?:\.\d{2})?|\d+\s?USD|\d+\s?INR|\d+\s?Rs|₹\s?\d+)/gi)).map(m => m[0]);
-  const uniquePrices = [...new Set(pricingMatches)].slice(0, 10);
+  const pricingMatches = Array.from(safeText.matchAll(/(\$|₹|USD|INR|Rs\.?)\s?\d+(?:\.\d{2})?/gi)).map(m => m[0]);
+  const uniquePrices = [...new Set(pricingMatches)].slice(0, 15);
 
-  const sections = safeText.split('\n').filter(l => l.trim().length > 5);
-  const products = sections.filter(l => {
-    const lowLine = l.toLowerCase();
-    return lowLine.includes('plan') || lowLine.includes('feature') || 
-           lowLine.includes('service') || lowLine.includes('product') ||
-           lowLine.includes('pricing') || lowLine.includes('offer');
-  }).slice(0, 30);
+  const sections = safeText.split('\n').filter(l => l.trim().length > 10);
+  const coreContent = sections.filter(l => {
+    const low = l.toLowerCase();
+    return low.includes('service') || low.includes('product') || low.includes('price') || 
+           low.includes('offer') || low.includes('about') || low.includes('contact') ||
+           low.includes('policy');
+  }).slice(0, 40);
 
   return `
-BUSINESS NAME: ${title || 'Not specified'}
-PROFILE: ${metaDescription || 'No description found.'}
+--- BUSINESS KNOWLEDGE BASE ---
+BUSINESS: ${title || 'Business'}
+ABOUT: ${metaDescription || 'Information provided via manual entry or website scan.'}
 
-SERVICES/PRODUCTS:
-${products.length > 0 ? products.join('\n') : 'Details available in main content.'}
+KEY DETAILS & SERVICES:
+${coreContent.join('\n') || 'Refer to the raw data below for full details.'}
 
 PRICING & OFFERS:
-${uniquePrices.length > 0 ? uniquePrices.join(', ') : 'Inquire for pricing details.'}
+${uniquePrices.join(', ') || 'Inquire for pricing details.'}
 
 CONTACT INFO:
-- Emails: ${uniqueEmails.join(', ') || 'Contact us through the website'}
-- Phones: ${uniquePhones.join(', ') || 'Phone support available'}
+- Emails: ${uniqueEmails.join(', ')}
+- Phone: ${uniquePhones.join(', ')}
 
-ADDITIONAL DETAILS:
-${safeText.substring(0, 8000)}
+ADDITIONAL RAW CONTENT:
+${safeText.substring(0, 10000)}
   `.trim();
 }
 
@@ -121,7 +122,7 @@ function roughScrapChat(query: string, knowledgeBase: string, personality: strin
 }
 
 // --- GEMINI AI ENGINE ---
-async function geminiChat(query: string, knowledgeBase: string, personality: string, customInstructions: string = '', primaryLanguage: string = 'auto') {
+async function geminiChat(query: string, knowledgeBase: string, personality: string, customInstructions: string = '', primaryLanguage: string = 'auto', chatHistory: any[] = []) {
   // Simple cleanup of knowledge base to remove noise
   const cleanKB = (knowledgeBase || '')
     .substring(0, 15000)
@@ -141,25 +142,33 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
     });
 
     const hasKnowledge = cleanKB.length > 20;
-
-    const systemPrompt = `You are a professional, friendly, and very helpful AI assistant representing a business.
     
-BUSINESS KNOWLEDGE (CONTEXT):
-${hasKnowledge ? cleanKB : 'No specific details provided yet. Greet the user, tell them you are the business assistant, and offer general help.'}
+    // Format history for context
+    const historyContext = chatHistory.slice(-6).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
+
+    const systemPrompt = `You are a professional, helpful, and very friendly AI assistant representing a business.
+    
+BUSINESS KNOWLEDGE:
+${hasKnowledge ? cleanKB : 'No specific details provided yet. Greet the user warmly, introduce yourself as the business assistant, and offer to help with general questions.'}
 
 TONE: ${personality}
-PREFERENCE: ${primaryLanguage}
+LANGUAGE PREFERENCE: ${primaryLanguage}
 CUSTOM INSTRUCTIONS: ${customInstructions}
 
 BEHAVIORAL RULES:
-1. TALK LIKE A HUMAN. Be warm and professional. Do NOT use phrases like "based on the documents".
-2. ACCURACY: Use the BUSINESS KNOWLEDGE provided. If info is missing, just say you don't have that specific detail yet but offer to help with what you know.
-3. MULTILINGUAL: If the user speaks Hindi or Hinglish, respond in natural, polite Hinglish. (e.g., "Hanji, main aapki poori help karunga. Humari pricing kuch is tarah se hai...").
-4. CONCISE: Keep answers helpful but brief.
-5. NO REPETITION: Don't repeat the same greeting in every turn.
-6. IDENTITY: You represent the company. Never mention AI models or databases.`;
+1. TALK LIKE A HUMAN. Be warm, polite, and helpful. Use a natural tone of voice.
+2. NO ROBOTIC PHRASES: Never say "based on the documents" or "I don't have access to that info". Instead say "I don't have that specific detail yet, but I can check for you" or "Aap humein call kar sakte hain details ke liye".
+3. MULTILINGUAL: If the user speaks Hindi or Hinglish, respond in natural, polite Hinglish. (e.g., "Hanji, kaise hain aap? Main aapki poori help karunga.").
+4. CONCISE & HELPFUL: Give direct answers. Don't repeat greetings if already in conversation.
+5. IDENTITY: You represent the company directly. Do NOT mention being an AI or a large language model.
 
-    const response = await model.generateContent([systemPrompt, `User message: ${query}`]);
+CONVERSATION HISTORY:
+${historyContext || 'No previous messages.'}
+
+USER MESSAGE:
+${query}`;
+
+    const response = await model.generateContent(systemPrompt);
     const text = response.response.text();
     
     if (!text || text.length < 2) throw new Error("Empty AI response");
@@ -368,14 +377,15 @@ apiRouter.post("/parse-file", upload.single("file"), async (req, res) => {
 });
 
 apiRouter.post("/chat", async (req, res) => {
-  const { prompt, knowledgeBase, personality, customInstructions, primaryLanguage } = req.body;
+  const { prompt, knowledgeBase, personality, customInstructions, primaryLanguage, chatHistory } = req.body;
   try {
     const text = await geminiChat(
       prompt || '', 
       knowledgeBase || '', 
       personality || 'professional', 
       customInstructions || '', 
-      primaryLanguage || 'auto'
+      primaryLanguage || 'auto',
+      chatHistory || []
     );
     res.json({ text });
   } catch (err: any) {
