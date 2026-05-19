@@ -230,18 +230,18 @@ RULES:
     }
     
     // Fallback if JSON fails
+    if (!responseText) {
+      return roughScrapAnalysis(text, title, description);
+    }
+
     return { 
-      knowledgeBase: responseText || roughScrapAnalysis(text, title, description),
-      missingTips: ["Please verify the and refine the details extracted."],
+      knowledgeBase: responseText,
+      missingTips: ["Please verify and refine the details extracted."],
       businessName: title
     };
   } catch (err) {
     console.error("Gemini Analyze Error:", err);
-    return {
-      knowledgeBase: roughScrapAnalysis(text, title, description),
-      missingTips: ["Manual verification recommended due to scanner interruption."],
-      businessName: title
-    };
+    return roughScrapAnalysis(text, title, description);
   }
 }
 

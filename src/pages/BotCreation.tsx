@@ -171,8 +171,13 @@ export default function BotCreation() {
     setLoading(true);
     try {
       const data = await analyzeText(details, botName || companyName);
-      setDetails(data.result);
-      toast.success("AI significantly improved your knowledge structure!");
+      // data.result is the object { knowledgeBase, missingTips, businessName }
+      if (data.result && data.result.knowledgeBase) {
+        setDetails(data.result.knowledgeBase);
+        toast.success("AI significantly improved your knowledge structure!");
+      } else {
+        throw new Error("Invalid response format");
+      }
     } catch (err: any) {
       toast.error(err.message || "Failed to optimize text.");
     } finally {
@@ -227,9 +232,10 @@ export default function BotCreation() {
     setFileUploading(true);
     try {
       const data = await parseFile(file);
+      const content = data.result?.knowledgeBase || data.result;
       setDetails(prev => {
         const base = prev.trim();
-        return base ? base + "\n\nExtracted from document (" + file.name + "):\n" + data.result : data.result;
+        return base ? base + "\n\nExtracted from document (" + file.name + "):\n" + content : content;
       });
       toast.success(`Successfully uploaded ${file.name}`);
     } catch (err: any) {
