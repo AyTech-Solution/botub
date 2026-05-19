@@ -58,6 +58,47 @@ export default function WidgetPage() {
     if (!botId) return;
 
     const fetchBot = async () => {
+      // HANDLE SYSTEM SUPPORT BOT
+      if (botId === 'system-support-bot') {
+        const supportBotMock = {
+          id: 'system-support-bot',
+          name: 'Botub Support',
+          companyName: 'Botub AI / AyTech',
+          greetingMessage: "Hi! I'm the Botub Support assistant. How can I help you today?",
+          personality: 'friendly',
+          branding: { color: '#4f46e5' },
+          showPoweredBy: true,
+          primaryLanguage: 'auto',
+          companyDetails: `
+            Botub AI is a platform by AyTech Solution to create business chatbots effortlessly.
+            Key Services:
+            - AI Chatbots for websites
+            - PDF and Text document training
+            - Lead generation bots
+            - WhatsApp Integration (Upcoming)
+            - Multilingual support (Hindi, English, etc.)
+            
+            Pricing:
+            - Basic: Create 1 Bot for free
+            - Pro: Multiple bots, priority support, custom branding
+            
+            Contact Info:
+            - Email: teamaytech@gmail.com
+            - Phone: +91 7742065298
+            - Location: Jodhpur, Rajasthan, India
+          `
+        };
+        setBot(supportBotMock);
+        setMessages([{
+          id: 'greeting',
+          role: 'bot',
+          content: supportBotMock.greetingMessage,
+          timestamp: new Date().toISOString()
+        }]);
+        setLoading(false);
+        return;
+      }
+
       try {
         const botRef = doc(db, 'bots', botId);
         const botSnap = await getDoc(botRef);

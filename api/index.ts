@@ -212,19 +212,29 @@ apiRouter.post("/analyze-website", async (req, res) => {
   try {
     const response = await axios.get(url, {
       headers: { 
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Cache-Control': 'no-cache'
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Sec-Ch-Ua': '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"macOS"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1'
       },
-      timeout: 8000,
-      maxRedirects: 5,
+      timeout: 12000,
+      maxRedirects: 8,
       validateStatus: () => true
     });
 
     if (response.status >= 400 && response.status !== 404) {
       return res.status(response.status).json({ 
-        error: `Website restricted access (Status ${response.status})`, 
-        suggestion: "Cloud protection detected. Please paste website text manually." 
+        error: `Shield Protection (Code ${response.status})`, 
+        suggestion: "Target site is protected by a firewall. Please copy the important text and paste it manually." 
       });
     }
 
@@ -248,8 +258,8 @@ apiRouter.post("/analyze-website", async (req, res) => {
     res.json({ result, title, crawledCount: 1 });
   } catch (err: any) {
     res.status(500).json({ 
-      error: "Cloud Connection Issue", 
-      suggestion: "Target site blocked the scan. Manual entry recommended."
+      error: "Connection Interrupted", 
+      suggestion: "Some websites block automated AI scanners. Please bypass this by manually pasting the text from your website into the details box."
     });
   }
 });

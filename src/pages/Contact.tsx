@@ -135,7 +135,7 @@ export default function Contact() {
                   </div>
                   <div>
                     <p className="text-sm font-bold text-gray-900">Email us at</p>
-                    <p className="text-gray-500">support@botub.ai</p>
+                    <p className="text-gray-500">teamaytech@gmail.com</p>
                     <p className="text-xs text-indigo-600 font-medium mt-1">Response time: &lt; 24h</p>
                   </div>
                 </div>
@@ -146,8 +146,8 @@ export default function Contact() {
                   </div>
                   <div>
                     <p className="text-sm font-bold text-gray-900">Call us</p>
-                    <p className="text-gray-500">+1 (555) 000-0000</p>
-                    <p className="text-xs text-indigo-600 font-medium mt-1">Mon - Fri, 9am - 6pm EST</p>
+                    <p className="text-gray-500">+91 7742065298</p>
+                    <p className="text-xs text-indigo-600 font-medium mt-1">Mon - Sat, 10am - 8pm IST</p>
                   </div>
                 </div>
 
@@ -157,7 +157,7 @@ export default function Contact() {
                   </div>
                   <div>
                     <p className="text-sm font-bold text-gray-900">Headquarters</p>
-                    <p className="text-gray-500">123 AI Boulevard, Tech City, SF 94105</p>
+                    <p className="text-gray-500">Jodhpur, Rajasthan, India</p>
                   </div>
                 </div>
               </div>
@@ -168,7 +168,12 @@ export default function Contact() {
               <p className="text-indigo-100 mb-6 text-sm">
                 Chat with our own Botub AI assistant for instant answers to common questions.
               </p>
-              <button className="px-6 py-3 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">
+              <button 
+                onClick={() => {
+                   window.open('/widget/system-support-bot', '_blank', 'width=400,height=600');
+                }}
+                className="px-6 py-3 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all"
+              >
                 Open Support Chat
               </button>
             </div>

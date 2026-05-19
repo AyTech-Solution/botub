@@ -199,9 +199,9 @@ export default function BotCreation() {
       } else if (err.message?.includes('422')) {
         msg = "Security/Structure Restriction.";
         sug = "The website structure prevents automated scanning. Please paste the info manually.";
-      } else if (err.message?.includes('500') || err.message?.includes('Platform Error')) {
-        msg = "Cloud Service Limit reached.";
-        sug = "Our server reached a technical limit or the target site blocked the connection. Please bypass this and paste the content manually.";
+      } else if (err.message?.includes('500') || err.message?.includes('Platform Error') || err.message?.includes('Connection Interrupted')) {
+        msg = "Cloud Scanner Blocked.";
+        sug = "The website is protecting itself from automated scans. Don't worry—just copy the text from your website and paste it into the details box below to continue!";
       }
       
       setError(msg);
