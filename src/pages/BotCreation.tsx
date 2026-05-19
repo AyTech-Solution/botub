@@ -197,10 +197,10 @@ export default function BotCreation() {
         msg = "Access Blocked (403 Forbidden).";
         sug = "This website blocks automated scanners like ours. Please paste the content manually below.";
       } else if (err.message?.includes('422')) {
-        msg = "Security/Structure Restriction.";
+        msg = "Scanning limitation.";
         sug = "The website structure prevents automated scanning. Please paste the info manually.";
-      } else if (err.message?.includes('500') || err.message?.includes('Platform Error') || err.message?.includes('Connection Interrupted')) {
-        msg = "Cloud Scanner Blocked.";
+      } else if (err.message?.includes('500') || err.message?.includes('Scanner connection issue') || err.message?.includes('restricted access')) {
+        msg = "Website Scanner Blocked.";
         sug = "The website is protecting itself from automated scans. Don't worry—just copy the text from your website and paste it into the details box below to continue!";
       }
       

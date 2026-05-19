@@ -233,8 +233,8 @@ apiRouter.post("/analyze-website", async (req, res) => {
 
     if (response.status >= 400 && response.status !== 404) {
       return res.status(response.status).json({ 
-        error: `Shield Protection (Code ${response.status})`, 
-        suggestion: "Target site is protected by a firewall. Please copy the important text and paste it manually." 
+        error: "Website restricted access", 
+        suggestion: "This website has high security (Cloudflare/Firewall). Please copy the key information from the site and paste it into the details box manually." 
       });
     }
 
@@ -249,8 +249,8 @@ apiRouter.post("/analyze-website", async (req, res) => {
 
     if (mainText.length < 50) {
       return res.status(422).json({ 
-        error: "Dynamic Content Block", 
-        suggestion: "This site requires JavaScript to load. Kripya content manually copy-paste karein." 
+        error: "Scanning limitation", 
+        suggestion: "We couldn't read much text from this URL. It might be an interactive app. Please paste the content manually." 
       });
     }
 
@@ -258,8 +258,8 @@ apiRouter.post("/analyze-website", async (req, res) => {
     res.json({ result, title, crawledCount: 1 });
   } catch (err: any) {
     res.status(500).json({ 
-      error: "Connection Interrupted", 
-      suggestion: "Some websites block automated AI scanners. Please bypass this by manually pasting the text from your website into the details box."
+      error: "Scanner connection issue", 
+      suggestion: "The website blocked the automated AI scanner. Please bypass this by manually pasting the text from your website into the details box."
     });
   }
 });
