@@ -3,10 +3,17 @@ import axios from "axios";
 import { load } from "cheerio";
 import cors from "cors";
 import nodemailer from "nodemailer";
+import { GoogleGenAI } from "@google/genai";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// --- GEMINI AI CONFIG ---
+const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+}) : null;
 
 // --- MAILING LOGIC (Merged to prevent Vercel import issues) ---
 const port = parseInt(process.env.SMTP_PORT || "587");
@@ -136,6 +143,61 @@ function roughScrapChat(query: string, knowledgeBase: string, personality: strin
   return "I couldn't find a specific answer for that. Please try asking about our services or contact details.";
 }
 
+// --- GEMINI AI ENGINE ---
+async function geminiChat(query: string, knowledgeBase: string, personality: string) {
+  if (!ai) return roughScrapChat(query, knowledgeBase, personality);
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `You are an AI chatbot for a business. Use the provided Knowledge Base to answer the user query concisely.
+      
+PERSONALITY: ${personality}
+KNOWLEDGE BASE:
+${knowledgeBase}
+
+USER QUERY: ${query}
+
+Rules:
+1. Only answer based on the knowledge base.
+2. If info is missing, say you don't know exactly but suggest contacting support.
+3. Keep it professional/natural based on personality.
+4. Do NOT include phrases like "According to the database".`,
+    });
+    return response.text || roughScrapChat(query, knowledgeBase, personality);
+  } catch (err) {
+    console.error("Gemini Chat Error:", err);
+    return roughScrapChat(query, knowledgeBase, personality);
+  }
+}
+
+async function geminiAnalyze(text: string, title: string, description: string) {
+  if (!ai) return roughScrapAnalysis(text, title, description);
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Analyze the following website content for a business and extract key information.
+      
+TITLE: ${title}
+DESCRIPTION: ${description}
+CONTENT:
+${text.substring(0, 10000)}
+
+Output a structured knowledge base for a chatbot. Include:
+1. Business Overview
+2. Services/Products with details
+3. Pricing if found
+4. Contact info (emails, phones, address)
+5. FAQ potential data`,
+    });
+    return response.text || roughScrapAnalysis(text, title, description);
+  } catch (err) {
+    console.error("Gemini Analyze Error:", err);
+    return roughScrapAnalysis(text, title, description);
+  }
+}
+
 // --- API ROUTES ---
 
 const apiRouter = express.Router();
@@ -193,7 +255,7 @@ apiRouter.post("/analyze-website", async (req, res) => {
       });
     }
 
-    const result = roughScrapAnalysis(mainText, title, description);
+    const result = await geminiAnalyze(mainText, title, description);
     res.json({ result, title, crawledCount: 1 });
   } catch (err: any) {
     res.status(500).json({ 
@@ -206,7 +268,7 @@ apiRouter.post("/analyze-website", async (req, res) => {
 apiRouter.post("/chat", async (req, res) => {
   const { prompt, knowledgeBase, personality } = req.body;
   try {
-    const text = roughScrapChat(prompt || '', knowledgeBase || '', personality || 'professional');
+    const text = await geminiChat(prompt || '', knowledgeBase || '', personality || 'professional');
     res.json({ text });
   } catch (err: any) {
     res.status(500).json({ error: "Execution Fail" });

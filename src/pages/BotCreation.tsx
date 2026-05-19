@@ -558,27 +558,69 @@ export default function BotCreation() {
                     <Bot className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                     <input
                       type="text"
-                      placeholder="e.g. SupportBot, SalesAssistant"
+                      id="bot-name-input"
+                      placeholder="Give your bot a unique name (e.g. Maya, SupportHero)"
                       value={botName}
                       onChange={(e) => setBotName(e.target.value)}
                       className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     />
                   </div>
                 </div>
+                
+                <div className="relative">
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Use Case</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsPersonalityDropdownOpen(!isPersonalityDropdownOpen)}
+                    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl flex items-center justify-between hover:border-indigo-300 transition-all font-bold text-sm"
+                  >
+                    <div className="flex items-center space-x-3">
+                      {useCaseTemplates[platform]?.find(u => u.id === useCase)?.icon}
+                      <span className="capitalize">{useCaseTemplates[platform]?.find(u => u.id === useCase)?.label}</span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isPersonalityDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  <AnimatePresence>
+                    {isPersonalityDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        className="absolute z-50 left-0 right-0 mt-2 bg-white rounded-xl border border-gray-100 shadow-xl overflow-hidden max-h-60 overflow-y-auto"
+                      >
+                        {useCaseTemplates[platform]?.map((u) => (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() => { setUseCase(u.id); setIsPersonalityDropdownOpen(false); }}
+                            className="w-full p-4 text-left hover:bg-gray-50 flex items-center space-x-3"
+                          >
+                            <div className="text-indigo-600">{u.icon}</div>
+                            <div>
+                              <p className="text-xs font-bold capitalize">{u.label}</p>
+                              <p className="text-[10px] text-gray-400">{u.desc}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">Company Name</label>
                   <div className="relative">
                     <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                     <input
                       type="text"
-                      placeholder="e.g. Acme Corp"
+                      placeholder="e.g. Acme Corp, AyTech Solution"
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
                       className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     />
                   </div>
                 </div>
-                <div className="flex gap-4">
+                <div className="flex gap-4 pt-4">
                   <button
                     onClick={() => setStep(2)}
                     className="flex-1 py-4 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-50 transition-all"
@@ -727,8 +769,8 @@ export default function BotCreation() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex flex-col">
-                      <label className="text-sm font-bold text-gray-700">Knowledge Base Details (Website ki jaankari)</label>
-                      <p className="text-[10px] text-gray-400">Yahan apne business/website ki sabhi details daalein. (Max 8000 chars)</p>
+                      <label className="text-sm font-bold text-gray-700">Company Details</label>
+                      <p className="text-[10px] text-gray-400">Provide information about your services, products, and policies for the AI to learn.</p>
                     </div>
                     {analysisResult && (
                        <button 
@@ -742,7 +784,7 @@ export default function BotCreation() {
                   <div className="relative">
                     <textarea
                       rows={8}
-                      placeholder="Tip: Agar website automatically scan nahi ho rahi, toh aap manually text copy karke yahan paste kar sakte hain. Isme pricing, services aur contact info zaroor daalein."
+                      placeholder="Describe your company, what you sell, common questions, and how to reach support. The more detail you provide, the better your bot will perform."
                       value={details}
                       onChange={(e) => setDetails(e.target.value)}
                       className="w-full p-5 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none text-sm leading-relaxed"
