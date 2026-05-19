@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { doc, setDoc, collection, addDoc, getDocs, query, where, getDoc } from 'firebase/firestore';
-import { analyzeWebsite } from '../services/botService';
+import { analyzeWebsite, parseFile } from '../services/botService';
 import { 
   Bot, 
   Globe, 
   Building2, 
-  FileText, 
+  FileText,
+  Upload,
+  File,
   Link as LinkIcon, 
   ArrowRight, 
   Loader2,
@@ -106,6 +108,7 @@ export default function BotCreation() {
   const [botCount, setBotCount] = useState(0);
   const [createdBotId, setCreatedBotId] = useState('');
   const [isFinishing, setIsFinishing] = useState(false);
+  const [fileUploading, setFileUploading] = useState(false);
   
   // New Premium Features State
   const [personality, setPersonality] = useState('professional');
@@ -205,6 +208,33 @@ export default function BotCreation() {
       setSuggestion(sug);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size exceeds 5MB limit.");
+      return;
+    }
+
+    setFileUploading(true);
+    try {
+      const data = await parseFile(file);
+      setDetails(prev => {
+        const base = prev.trim();
+        return base ? base + "\n\nExtracted from document (" + file.name + "):\n" + data.result : data.result;
+      });
+      toast.success(`Successfully uploaded ${file.name}`);
+    } catch (err: any) {
+      console.error("File Upload Error:", err);
+      toast.error(err.message || "Failed to upload file.");
+    } finally {
+      setFileUploading(false);
+      // Reset input
+      e.target.value = '';
     }
   };
 
@@ -649,6 +679,32 @@ export default function BotCreation() {
                           <p className="text-[10px] text-gray-400 mt-2">
                             <strong>Deep Scan:</strong> Our AI will crawl multiple pages to find business rules, services, and policies.
                           </p>
+                        </div>
+
+                        {/* File Upload Section */}
+                        <div className="bg-indigo-50/30 p-5 rounded-2xl border border-indigo-100 border-dashed">
+                          <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Upload PDF or Text Files</label>
+                          <div className="flex flex-col items-center justify-center border-2 border-dashed border-indigo-200 rounded-xl p-6 bg-white hover:bg-indigo-50/50 transition-all cursor-pointer relative group">
+                            <input
+                              type="file"
+                              accept=".pdf,.txt"
+                              onChange={handleFileUpload}
+                              className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                              disabled={fileUploading}
+                            />
+                            {fileUploading ? (
+                              <div className="flex flex-col items-center">
+                                <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mb-2" />
+                                <p className="text-xs font-bold text-indigo-600">Extracting data...</p>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center">
+                                <Upload className="w-8 h-8 text-indigo-400 group-hover:text-indigo-600 mb-2 transition-colors" />
+                                <p className="text-xs font-bold text-gray-600">Click or drag PDF/TXT files</p>
+                                <p className="text-[10px] text-gray-400 mt-1">Max 5MB per file</p>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         {/* Additional URLs */}

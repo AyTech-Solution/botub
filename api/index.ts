@@ -5,10 +5,18 @@ import cors from "cors";
 import nodemailer from "nodemailer";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import "dotenv/config";
+import multer from "multer";
+// @ts-ignore
+import pdf from "pdf-parse";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
 
 // --- GEMINI AI CONFIG ---
 const ai = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
@@ -243,6 +251,37 @@ apiRouter.post("/analyze-website", async (req, res) => {
       error: "Cloud Connection Issue", 
       suggestion: "Target site blocked the scan. Manual entry recommended."
     });
+  }
+});
+
+apiRouter.post("/parse-file", upload.single("file"), async (req, res) => {
+  const file = req.file;
+  if (!file) return res.status(400).json({ error: "No file uploaded" });
+
+  try {
+    let text = "";
+    if (file.mimetype === "application/pdf") {
+      const data = await pdf(file.buffer);
+      text = data.text;
+    } else if (file.mimetype === "text/plain" || file.mimetype === "text/markdown") {
+      text = file.buffer.toString("utf-8");
+    } else {
+      return res.status(400).json({ error: "Unsupported file type. Please upload PDF or TXT." });
+    }
+
+    if (!text || !text.trim()) {
+      return res.status(422).json({ error: "Empty file or no readable text found." });
+    }
+
+    // Clean up text (remove excessive newlines/spaces)
+    const cleanText = text.replace(/\s\s+/g, ' ').trim();
+    
+    // Use Gemini to structure the extracted text
+    const result = await geminiAnalyze(cleanText.substring(0, 15000), file.originalname, "Uploaded Document Content");
+    res.json({ result, title: file.originalname });
+  } catch (err) {
+    console.error("File Parse Error:", err);
+    res.status(500).json({ error: "Failed to parse file. Ensure it's not password protected." });
   }
 });
 
