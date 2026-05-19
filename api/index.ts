@@ -144,7 +144,7 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
     const historyContext = chatHistory.slice(-6).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content || m.text}`).join('\n');
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash",
       contents: [
         {
           role: 'user',
@@ -183,6 +183,9 @@ USER QUERY: ${query}` }]
     if (err.message?.includes("leaked") || err.message?.includes("403")) {
       return "⚠️ **SYSTEM ERROR:** Your Gemini API key has been flagged as leaked and is disabled. Please update your key in the App Settings to resume chat.";
     }
+    if (err.message?.includes("503") || err.message?.includes("Service Unavailable") || err.message?.includes("high demand")) {
+      return "⚠️ **SYSTEM BUSY:** Gemini is currently experiencing high demand. Please try again in a few seconds.";
+    }
     return roughScrapChat(query, cleanKB, personality);
   }
 }
@@ -192,8 +195,9 @@ async function geminiAnalyze(text: string, title: string, description: string) {
   if (!ai || !text) return fallback;
   
   try {
+    // Using gemini-1.5-flash for analysis as it's typically more stable for bulk data processing
     const response = await ai.models.generateContent({ 
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash",
       contents: `You are an Expert Business Consultant and Data Architect. Analyze the raw text and structure it into a perfect Knowledge Base.
 
 TASK:
@@ -239,6 +243,12 @@ ${text.substring(0, 10000)}`,
         missingTips: ["⚠️ [CRITICAL] Your Gemini API key has been reported as leaked and disabled. Please update your API key in Settings."]
       };
     }
+    if (err.message?.includes("503") || err.message?.includes("Service Unavailable") || err.message?.includes("high demand")) {
+      return {
+        ...fallback,
+        missingTips: ["⚠️ [BUSY] Gemini is busy. Some structure might be missing. Try again later for full analysis."]
+      };
+    }
     return fallback;
   }
 }
@@ -249,7 +259,7 @@ const apiRouter = express.Router();
 
 apiRouter.get("/health", (req, res) => res.json({ 
   status: "ok", 
-  engine: ai ? "Gemini 3 Flash Preview" : "Deterministic SLM",
+  engine: ai ? "Gemini 1.5 Flash" : "Deterministic SLM",
   ai_ready: !!ai
 }));
 
