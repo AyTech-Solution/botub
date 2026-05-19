@@ -44,8 +44,8 @@ function roughScrapAnalysis(text: string, title: string, metaDescription: string
   const emails = Array.from(safeText.matchAll(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g)).map(m => m[0]);
   const uniqueEmails = [...new Set(emails)];
 
-  const phones = Array.from(safeText.matchAll(/(\+\d{1,3}[- ]?)?\(?\d{3}\)?[- ]?\d{3}[- ]?\d{4}/g)).map(m => m[0]);
-  const uniquePhones = [...new Set(phones)];
+  const phones = Array.from(safeText.matchAll(/(\+?\d{1,3}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,5}/g)).map(m => m[0]);
+  const uniquePhones = [...new Set(phones)].filter(p => p.length >= 10);
 
   const pricingMatches = Array.from(safeText.matchAll(/(\$\s?\d+(?:\.\d{2})?|\d+\s?USD|\d+\s?INR|\d+\s?Rs|₹\s?\d+)/gi)).map(m => m[0]);
   const uniquePrices = [...new Set(pricingMatches)].slice(0, 10);
@@ -81,47 +81,59 @@ ${safeText.substring(0, 6000)}
 
 function roughScrapChat(query: string, knowledgeBase: string, personality: string) {
   if (!knowledgeBase || typeof knowledgeBase !== 'string' || knowledgeBase.length < 5) {
-    return "Mera knowledge base abhi khali hai. Kripya meri settings mein website info ya custom text daalein taaki main aapki behtar madad kar sakun.";
+    return "Mera knowledge base abhi khali hai. Kripya settings mein jaakar details daalein.";
   }
 
   const lowQuery = query.toLowerCase();
   const keywords = lowQuery.split(/\s+/).filter(w => w.length > 2);
-  const lines = knowledgeBase.split('\n').filter(l => l.trim().length > 8);
+  
+  // Special Handling for Contacts
+  const contactKeywords = ['contact', 'call', 'email', 'phone', 'mobile', 'address', 'location', 'reach', 'number', 'mail'];
+  const isContactQuery = contactKeywords.some(k => lowQuery.includes(k));
+
+  if (isContactQuery) {
+    const contactSection = knowledgeBase.split('\n').find(l => l.includes('CONTACT RECORDS') || l.includes('Emails:') || l.includes('Phones:'));
+    if (contactSection) {
+      // Find the specific email/phone lines
+      const contactLines = knowledgeBase.split('\n').filter(l => l.includes('Emails:') || l.includes('Phones:') || l.includes('Address:'));
+      if (contactLines.length > 0) {
+        return contactLines.join('\n').replace('- ', '').trim();
+      }
+    }
+  }
+
+  const lines = knowledgeBase.split('\n').filter(l => l.trim().length > 8 && !l.includes('---'));
   
   const matches = lines.map(line => {
     let score = 0;
     const lowLine = line.toLowerCase();
     
     keywords.forEach(word => {
-      if (lowLine.includes(word)) score += Math.pow(word.length, 1.4);
+      if (lowLine.includes(word)) score += Math.pow(word.length, 1.5);
     });
 
-    if (lowLine.includes(lowQuery)) score += 60;
+    if (lowLine.includes(lowQuery)) score += 100;
 
     return { line: line.trim(), score };
   })
   .filter(m => m.score > 0)
   .sort((a, b) => b.score - a.score)
-  .slice(0, 10);
-
-  let baseResponse = "Based on our records:";
-  const p = personality.toLowerCase();
-  if (p.includes('friendly')) baseResponse = "Hello! Here is what I found for you:";
-  else if (p.includes('professional')) baseResponse = "According to our validated database:";
+  .slice(0, 5);
 
   if (matches.length > 0) {
-    const uniqueLines = Array.from(new Set(matches.map(m => m.line))).join('\n');
-    return `${baseResponse}\n\n${uniqueLines}\n\nIs there anything else you want to know? (Main aapki aur kis tarah se madad kar sakta hoon?)`;
+    // Return only the most relevant unique lines without any prefix/suffix
+    const bestLines = Array.from(new Set(matches.map(m => m.line)));
+    return bestLines.join('\n').trim();
   }
   
-  // Cross-lingual fallback check
+  // Fallback for specific keyword phrases
   if (knowledgeBase.toLowerCase().includes(lowQuery)) {
     const index = knowledgeBase.toLowerCase().indexOf(lowQuery);
-    const snippet = knowledgeBase.substring(Math.max(0, index - 50), index + 400);
-    return `${baseResponse}\n\n...${snippet}...\n\nKya aapko aur jaankari chahiye?`;
+    const snippet = knowledgeBase.substring(Math.max(0, index - 20), index + 500).split('\n')[0];
+    if (snippet.length > 10) return snippet.trim();
   }
 
-  return `I analyzed your question but couldn't find a direct match. Try using different keywords like pricing, contact, or specific service names. (Mujhe sahi jaankari nahi mili, kripya aur specific ho kar poochhein.)`;
+  return "I couldn't find a specific answer for that. Please try asking about our services or contact details.";
 }
 
 // --- API ROUTES ---

@@ -747,32 +747,53 @@ export default function BotDetail() {
                     )}
                     {messages.map((msg, idx) => (
                       <motion.div 
-                        key={idx}
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        key={`${idx}-${msg.role}`}
+                        initial={msg.role === 'user' 
+                          ? { opacity: 0, x: 20, scale: 0.95 } 
+                          : { opacity: 0, x: -20, scale: 0.95 }
+                        }
+                        animate={{ opacity: 1, x: 0, scale: 1 }}
+                        transition={{ 
+                          type: "spring", 
+                          stiffness: 260, 
+                          damping: 20,
+                          delay: msg.role === 'bot' ? 0.1 : 0 
+                        }}
                         className={`flex items-end space-x-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                       >
                         {msg.role === 'bot' && (
-                          <div className="w-10 h-10 rounded-xl bg-brand-primary flex-shrink-0 flex items-center justify-center text-white text-xs font-black overflow-hidden shadow-lg shadow-brand-primary/10">
+                          <motion.div 
+                            initial={{ scale: 0.5, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ delay: 0.2 }}
+                            className="w-10 h-10 rounded-xl bg-brand-primary flex-shrink-0 flex items-center justify-center text-white text-xs font-black overflow-hidden shadow-lg shadow-brand-primary/10"
+                          >
                             {bot.avatarUrl ? (
                               <img src={bot.avatarUrl} alt={bot.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                             ) : (
                               bot.name?.[0]?.toUpperCase() || '?'
                             )}
-                          </div>
+                          </motion.div>
                         )}
-                        <div className={`max-w-[80%] p-5 rounded-[1.5rem] text-sm font-medium shadow-sm ${
-                          msg.role === 'user' 
-                            ? 'bg-brand-primary text-white rounded-tr-none' 
-                            : 'bg-white text-brand-dark border border-white/20 rounded-tl-none'
-                        }`}>
+                        <motion.div 
+                          layout
+                          className={`max-w-[80%] p-5 rounded-[1.5rem] text-sm font-medium shadow-sm ${
+                            msg.role === 'user' 
+                              ? 'bg-brand-primary text-white rounded-tr-none' 
+                              : 'bg-white text-brand-dark border border-white/20 rounded-tl-none'
+                          }`}
+                        >
                           {msg.text}
-                        </div>
+                        </motion.div>
                       </motion.div>
                     ))}
                     {sending && (
-                      <div className="flex justify-start items-end space-x-3">
-                        <div className="w-10 h-10 rounded-xl bg-brand-primary flex-shrink-0 flex items-center justify-center text-white text-xs font-black overflow-hidden">
+                      <motion.div 
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="flex justify-start items-end space-x-3"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-brand-primary flex-shrink-0 flex items-center justify-center text-white text-xs font-black overflow-hidden shadow-sm">
                           {bot.avatarUrl ? (
                             <img src={bot.avatarUrl} alt={bot.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                           ) : (
@@ -780,13 +801,25 @@ export default function BotDetail() {
                           )}
                         </div>
                         <div className="bg-white p-5 rounded-[1.5rem] rounded-tl-none border border-white/20 shadow-sm">
-                          <div className="flex space-x-1.5">
-                            <div className="w-2 h-2 bg-brand-primary/30 rounded-full animate-bounce"></div>
-                            <div className="w-2 h-2 bg-brand-primary/30 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                            <div className="w-2 h-2 bg-brand-primary/30 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                          <div className="flex space-x-1.5 px-1">
+                            {[0, 1, 2].map((i) => (
+                              <motion.div
+                                key={i}
+                                animate={{ 
+                                  y: [0, -4, 0],
+                                  opacity: [0.3, 1, 0.3]
+                                }}
+                                transition={{
+                                  duration: 0.8,
+                                  repeat: Infinity,
+                                  delay: i * 0.15
+                                }}
+                                className="w-1.5 h-1.5 bg-brand-primary rounded-full"
+                              />
+                            ))}
                           </div>
                         </div>
-                      </div>
+                      </motion.div>
                     )}
                     <div ref={chatEndRef} />
                   </div>
