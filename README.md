@@ -1,11 +1,22 @@
-<div align="center">
+# Botub AI - Standalone Deployment Guide
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+This application is ready to be deployed on **Vercel** or any Node.js environment.
 
-  <h1>Built with AI Studio</h2>
+## Deployment to Vercel
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+1. **Connect your GitHub Repository** to Vercel.
+2. **Environment Variables**: Add all variables from `.env.example` to your Vercel project settings.
+   - For `FIREBASE_SERVICE_ACCOUNT`, you can download the JSON key from your Firebase Console (Project Settings > Service Accounts) and paste the ENTIRE JSON string as the value.
+3. **Build Command**: `npm run build`
+4. **Install Command**: `npm install`
+5. **Output Directory**: `dist`
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## Features
+- **Standalone Backend**: The `api/` directory contains serverless functions for Vercel.
+- **SPA Routing**: `vercel.json` handles all client-side routes, preventing 404 on refresh.
+- **Security**: Backend routes are protected by Firebase Admin authentication.
 
-</div>
+## Local Development
+1. `npm install`
+2. Create a `.env` file based on `.env.example`.
+3. `npm run dev`
