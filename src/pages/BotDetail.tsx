@@ -752,82 +752,89 @@ export default function BotDetail() {
                         <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Start a conversation to test logic</p>
                       </div>
                     )}
-                    {messages.map((msg, idx) => (
-                      <motion.div 
-                        key={`${idx}-${msg.role}`}
-                        initial={msg.role === 'user' 
-                          ? { opacity: 0, x: 20, scale: 0.95 } 
-                          : { opacity: 0, x: -20, scale: 0.95 }
-                        }
-                        animate={{ opacity: 1, x: 0, scale: 1 }}
-                        transition={{ 
-                          type: "spring", 
-                          stiffness: 260, 
-                          damping: 20,
-                          delay: msg.role === 'bot' ? 0.1 : 0 
-                        }}
-                        className={`flex items-end space-x-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                      >
-                        {msg.role === 'bot' && (
+                    <AnimatePresence mode="popLayout" initial={false}>
+                      {messages.map((msg, idx) => (
+                        <motion.div 
+                          key={`${idx}-${msg.role}`}
+                          initial={msg.role === 'user' 
+                            ? { opacity: 0, x: 20, y: 10, scale: 0.95 } 
+                            : { opacity: 0, x: -20, y: 10, scale: 0.95 }
+                          }
+                          animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+                          transition={{ 
+                            type: "spring", 
+                            stiffness: 400, 
+                            damping: 30,
+                            mass: 0.8
+                          }}
+                          className={`flex items-end space-x-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                        >
+                          {msg.role === 'bot' && (
+                            <motion.div 
+                              initial={{ scale: 0.5, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              transition={{ delay: 0.1 }}
+                              className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-primary to-brand-secondary flex-shrink-0 flex items-center justify-center text-white text-xs font-black overflow-hidden shadow-lg shadow-brand-primary/10"
+                            >
+                              {bot.avatarUrl ? (
+                                <img src={bot.avatarUrl} alt={bot.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              ) : (
+                                bot.name?.[0]?.toUpperCase() || '?'
+                              )}
+                            </motion.div>
+                          )}
                           <motion.div 
-                            initial={{ scale: 0.5, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={{ delay: 0.2 }}
-                            className="w-10 h-10 rounded-xl bg-brand-primary flex-shrink-0 flex items-center justify-center text-white text-xs font-black overflow-hidden shadow-lg shadow-brand-primary/10"
+                            layout
+                            className={`max-w-[80%] p-5 rounded-[1.5rem] text-sm font-medium shadow-sm leading-relaxed ${
+                              msg.role === 'user' 
+                                ? 'bg-brand-primary text-white rounded-tr-none' 
+                                : 'bg-white text-brand-dark border border-white/20 rounded-tl-none'
+                            }`}
                           >
+                            {msg.text}
+                          </motion.div>
+                        </motion.div>
+                      ))}
+                      
+                      {sending && (
+                        <motion.div 
+                          key="loading"
+                          initial={{ opacity: 0, x: -20, y: 10, scale: 0.95 }}
+                          animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          className="flex justify-start items-end space-x-3"
+                        >
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-primary to-brand-secondary flex-shrink-0 flex items-center justify-center text-white text-xs font-black overflow-hidden shadow-sm">
                             {bot.avatarUrl ? (
                               <img src={bot.avatarUrl} alt={bot.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                             ) : (
                               bot.name?.[0]?.toUpperCase() || '?'
                             )}
-                          </motion.div>
-                        )}
-                        <motion.div 
-                          layout
-                          className={`max-w-[80%] p-5 rounded-[1.5rem] text-sm font-medium shadow-sm ${
-                            msg.role === 'user' 
-                              ? 'bg-brand-primary text-white rounded-tr-none' 
-                              : 'bg-white text-brand-dark border border-white/20 rounded-tl-none'
-                          }`}
-                        >
-                          {msg.text}
-                        </motion.div>
-                      </motion.div>
-                    ))}
-                    {sending && (
-                      <motion.div 
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="flex justify-start items-end space-x-3"
-                      >
-                        <div className="w-10 h-10 rounded-xl bg-brand-primary flex-shrink-0 flex items-center justify-center text-white text-xs font-black overflow-hidden shadow-sm">
-                          {bot.avatarUrl ? (
-                            <img src={bot.avatarUrl} alt={bot.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                          ) : (
-                            bot.name?.[0]?.toUpperCase() || '?'
-                          )}
-                        </div>
-                        <div className="bg-white p-5 rounded-[1.5rem] rounded-tl-none border border-white/20 shadow-sm">
-                          <div className="flex space-x-1.5 px-1">
-                            {[0, 1, 2].map((i) => (
-                              <motion.div
-                                key={i}
-                                animate={{ 
-                                  y: [0, -4, 0],
-                                  opacity: [0.3, 1, 0.3]
-                                }}
-                                transition={{
-                                  duration: 0.8,
-                                  repeat: Infinity,
-                                  delay: i * 0.15
-                                }}
-                                className="w-1.5 h-1.5 bg-brand-primary rounded-full"
-                              />
-                            ))}
                           </div>
-                        </div>
-                      </motion.div>
-                    )}
+                          <div className="bg-white p-5 rounded-[1.5rem] rounded-tl-none border border-white/20 shadow-sm flex items-center space-x-4">
+                            <div className="flex space-x-1.5 px-1">
+                              {[0, 1, 2].map((i) => (
+                                <motion.div
+                                  key={i}
+                                  animate={{ 
+                                    y: [0, -6, 0],
+                                    opacity: [0.4, 1, 0.4]
+                                  }}
+                                  transition={{
+                                    duration: 0.8,
+                                    repeat: Infinity,
+                                    delay: i * 0.15,
+                                    ease: "easeInOut"
+                                  }}
+                                  className="w-1.5 h-1.5 bg-brand-primary rounded-full"
+                                />
+                              ))}
+                            </div>
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest animate-pulse">Thinking...</span>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                     <div ref={chatEndRef} />
                   </div>
 
@@ -841,24 +848,42 @@ export default function BotDetail() {
                     </div>
                   )}
 
-                  <form onSubmit={handleSendMessage} className="p-8 bg-white/50 backdrop-blur-md border-t border-brand-dark/5 flex items-center space-x-4">
-                    <div className="relative flex-1">
-                      <input
-                        type="text"
-                        placeholder="Ask anything..."
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        className="w-full px-6 py-4 bg-white/80 border border-white/20 rounded-2xl focus:ring-2 focus:ring-brand-primary outline-none transition-all text-sm font-medium pr-12"
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={!input.trim() || sending}
-                      className="p-4 bg-brand-primary text-white rounded-2xl hover:bg-brand-secondary disabled:opacity-50 transition-all shadow-lg shadow-brand-primary/20"
+                  <div className="p-8 bg-white/50 backdrop-blur-md border-t border-brand-dark/5">
+                    <form 
+                      onSubmit={handleSendMessage} 
+                      className="flex items-end space-x-4 max-w-4xl mx-auto w-full"
                     >
-                      {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                    </button>
-                  </form>
+                      <div className="relative flex-1">
+                        <textarea
+                          placeholder="Type your message here..."
+                          value={input}
+                          rows={1}
+                          onChange={(e) => {
+                            setInput(e.target.value);
+                            e.target.style.height = 'auto';
+                            e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSendMessage(e);
+                            }
+                          }}
+                          className="w-full px-6 py-4 bg-white/80 border border-white/20 rounded-[1.5rem] focus:ring-2 focus:ring-brand-primary outline-none transition-all text-sm font-medium resize-none custom-scrollbar min-h-[56px] max-h-[200px]"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={!input.trim() || sending}
+                        className="p-4 bg-brand-primary text-white rounded-2xl hover:bg-brand-secondary disabled:opacity-50 transition-all shadow-lg shadow-brand-primary/20 flex-shrink-0"
+                      >
+                        {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                      </button>
+                    </form>
+                    <p className="text-[10px] text-center text-gray-400 font-bold uppercase tracking-widest mt-4">
+                      Shift + Enter for new line • Enter to send
+                    </p>
+                  </div>
                 </motion.div>
               )}
 

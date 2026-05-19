@@ -16,13 +16,15 @@ const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
   httpOptions: {
     headers: {
-      'User-Agent': 'aistudio-build',
+      'User-Agent': 'aistudio-build-proxy',
     }
   }
 }) : null;
 
 if (!process.env.GEMINI_API_KEY) {
-  console.warn("CRITICAL: GEMINI_API_KEY is missing from environment. AI features will fallback to deterministic engine.");
+  console.warn("⚠️ GEMINI_API_KEY is missing from environment. Using deterministic engine as fallback.");
+} else {
+  console.log("✅ Gemini AI Engine configured with key from environment.");
 }
 
 // --- MAILING LOGIC (Merged to prevent Vercel import issues) ---
@@ -176,8 +178,11 @@ USER QUERY: ${query}` }]
     
     if (!text || text.length < 2) throw new Error("Empty AI response");
     return text;
-  } catch (err) {
+  } catch (err: any) {
     console.error("Gemini Chat Error:", err);
+    if (err.message?.includes("leaked") || err.message?.includes("403")) {
+      return "⚠️ **SYSTEM ERROR:** Your Gemini API key has been flagged as leaked and is disabled. Please update your key in the App Settings to resume chat.";
+    }
     return roughScrapChat(query, cleanKB, personality);
   }
 }
@@ -226,8 +231,14 @@ ${text.substring(0, 10000)}`,
       missingTips: ["Please verify details."],
       businessName: title
     };
-  } catch (err) {
+  } catch (err: any) {
     console.error("Gemini Analyze Error:", err);
+    if (err.message?.includes("leaked") || err.message?.includes("403")) {
+      return {
+        ...fallback,
+        missingTips: ["⚠️ [CRITICAL] Your Gemini API key has been reported as leaked and disabled. Please update your API key in Settings."]
+      };
+    }
     return fallback;
   }
 }
