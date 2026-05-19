@@ -360,7 +360,14 @@ export default function BotDetail() {
     }
 
     const fullKnowledge = knowledge.map(k => k.content).join('\n\n');
-    const botResponse = await generateBotResponse(userMsg, fullKnowledge, bot.personality, bot.customInstructions, bot.primaryLanguage);
+    const botResponse = await generateBotResponse(
+      userMsg, 
+      fullKnowledge, 
+      bot.personality, 
+      bot.customInstructions, 
+      bot.primaryLanguage,
+      messages
+    );
     
     // Artificial delay based on responseSpeed setting
     const delay = bot.responseSpeed === 'instant' ? 0 : bot.responseSpeed === 'slow' ? 4000 : 1500;

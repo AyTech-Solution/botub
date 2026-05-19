@@ -3,7 +3,7 @@ import axios from "axios";
 import { load } from "cheerio";
 import cors from "cors";
 import nodemailer from "nodemailer";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import "dotenv/config";
 import https from "https";
 
@@ -12,7 +12,14 @@ app.use(cors());
 app.use(express.json());
 
 // --- GEMINI AI CONFIG ---
-const ai = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
+const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    }
+  }
+}) : null;
 
 if (!process.env.GEMINI_API_KEY) {
   console.warn("CRITICAL: GEMINI_API_KEY is missing from environment. AI features will fallback to deterministic engine.");
@@ -124,51 +131,44 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
   // Simple cleanup of knowledge base to remove noise
   const cleanKB = (knowledgeBase || '')
     .substring(0, 15000)
-    .replace(/---.*?---/g, '')
     .trim();
 
   if (!ai) return roughScrapChat(query, cleanKB, personality);
 
   try {
-    const model = ai.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
-      generationConfig: {
+    const hasKnowledge = cleanKB.length > 20;
+    
+    // Format history for context
+    const historyContext = chatHistory.slice(-6).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content || m.text}`).join('\n');
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `CONVERSATION HISTORY:
+${historyContext || 'New session'}
+
+USER MESSAGE:
+${query}`,
+      config: {
+        systemInstruction: `You are the Official AI Business Ambassador. Your mission is to provide accurate, helpful, and natural responses based on the provided records.
+
+BUSINESS RECORDS (Source of Truth):
+${hasKnowledge ? cleanKB : 'No specific records available. Greet the user and ask how you can help.'}
+
+TONE: ${personality}
+CUSTOM BRAND GUIDELINES: ${customInstructions || 'None'}
+
+RESPONSE GUIDELINES:
+1. NATURAL VOICE: Do not sound like a machine. Avoid "According to the document". Just answer.
+2. HINGLISH: If the user speaks Hinglish/Hindi, respond in warm, professional Hinglish. e.g., "Ji haan, hum ye provide karte hain."
+3. IDENTITY: You ARE the business team. Use "We", "Us", "Our".
+4. ACCURACY: Do not hallucinate. If info isn't in RECORDS, politely say you don't know but offer contact info.`,
         temperature: 0.8,
         topP: 0.9,
         maxOutputTokens: 1000,
       }
     });
 
-    const hasKnowledge = cleanKB.length > 20;
-    
-    // Format history for context
-    const historyContext = chatHistory.slice(-6).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
-
-    const systemPrompt = `You are the Official AI Business Assistant. Your primary directive is to be extremely helpful, professional, and warm, representing this business faithfully.
-    
-BUSINESS KNOWLEDGE (Your actual records):
-${hasKnowledge ? cleanKB : 'Greet the user warmly. Explain that you are the business assistant and offer to help with general questions. No specific details are available yet.'}
-
-TONE: ${personality} (Polite, Human-like, Professional)
-PREFERENCE: ${primaryLanguage}
-CUSTOM INSTRUCTIONS: ${customInstructions}
-
-RESPONSE RULES (STRICT):
-1. NO ROBOTIC DISCLAIMERS: Never say "Based on the provided information". Just answer naturally, e.g. "Humare paas ye services hain..." or "As per my records...".
-2. MULTILINGUAL: If the user speaks Hindi or Hinglish (e.g. "kahan ho?", "help chahiye"), respond in conversational and polite Hinglish.
-3. CONCISE: Keep answers direct and helpful. Don't repeat yourself.
-4. IDENTITY: You represent the company. Use "We", "Us", "Our".
-5. IF UNKNOWN: Don't guess. Say "I don't have that specific detail yet, but you can reach us at our contact info for more help."
-6. NO AI MENTION: Never mention you are an AI or a language model.
-
-CONVERSATION HISTORY:
-${historyContext || 'Start of a new conversation'}
-
-USER MESSAGE:
-${query}`;
-
-    const response = await model.generateContent(systemPrompt);
-    const text = response.response.text();
+    const text = response.text;
     
     if (!text || text.length < 2) throw new Error("Empty AI response");
     return text;
@@ -183,28 +183,29 @@ async function geminiAnalyze(text: string, title: string, description: string) {
   if (!ai || !text) return fallback;
   
   try {
-    const model = ai.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
-      generationConfig: { maxOutputTokens: 1000 }
-    });
+    const response = await ai.models.generateContent({ 
+      model: "gemini-3-flash-preview",
+      contents: `You are an Expert Business Data Architect. Analyze the raw text and structure it into a perfect Knowledge Base for a Customer Support Bot.
 
-    const response = await model.generateContent(`Analyze this business text. Return ONLY a JSON object:
+TASK:
+1. Extract Company Name, Essential Services, Pricing (if any), Contact Numbers, and FAQs.
+2. If info is missing (like specific pricing), mention "Ask for details" but flag it in missingTips.
+3. Format as clean, readable Markdown.
+
+OUTPUT JSON FORMAT ONLY:
 {
-  "knowledgeBase": "Markdown content...",
-  "missingTips": ["Tip 1"],
-  "businessName": "Name"
+  "knowledgeBase": "Markdown text...",
+  "missingTips": ["Tip: Add WhatsApp number"],
+  "businessName": "Company Name"
 }
 
-SOURCE: ${title}
-CONTENT: ${text.substring(0, 8000)}`);
+SOURCE DATA: ${title}
+RAW CONTENT: 
+${text.substring(0, 10000)}`,
+      config: { maxOutputTokens: 2000 }
+    });
     
-    let rText = "";
-    try {
-      const gRes = await response.response;
-      rText = gRes.text();
-    } catch (e) {
-      return fallback;
-    }
+    let rText = response.text || "";
 
     if (!rText || rText.length < 5) return fallback;
     
@@ -233,7 +234,7 @@ const apiRouter = express.Router();
 
 apiRouter.get("/health", (req, res) => res.json({ 
   status: "ok", 
-  engine: ai ? "Gemini 1.5 Flash" : "Deterministic SLM",
+  engine: ai ? "Gemini 3 Flash Preview" : "Deterministic SLM",
   ai_ready: !!ai
 }));
 
