@@ -110,6 +110,7 @@ export default function BotCreation() {
   // New Premium Features State
   const [personality, setPersonality] = useState('professional');
   const [isPersonalityDropdownOpen, setIsPersonalityDropdownOpen] = useState(false);
+  const [isUseCaseDropdownOpen, setIsUseCaseDropdownOpen] = useState(false);
   const [responseSpeed, setResponseSpeed] = useState('natural');
   const [isResponseSpeedDropdownOpen, setIsResponseSpeedDropdownOpen] = useState(false);
   const [customInstructions, setCustomInstructions] = useState('');
@@ -367,13 +368,13 @@ export default function BotCreation() {
         <div className="mb-12">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Create Your Bot</h1>
-            <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">Step {step} of 5</span>
+            <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">Step {step} of 4</span>
           </div>
           <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
             <motion.div 
               className="h-full bg-indigo-600"
               initial={{ width: '0%' }}
-              animate={{ width: `${(step / 5) * 100}%` }}
+              animate={{ width: `${(step / 4) * 100}%` }}
             />
           </div>
         </div>
@@ -485,62 +486,6 @@ export default function BotCreation() {
 
           {!isFinishing && step === 2 && (
             <motion.div 
-              key="step_usecase"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="bg-white rounded-3xl p-8 shadow-xl shadow-gray-200/50 border border-gray-100"
-            >
-              <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mb-6">
-                <Bot className="text-indigo-600 w-8 h-8" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Select Use Case</h2>
-              <p className="text-gray-500 mb-8">What is the primary goal of your {platform} bot?</p>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-                {useCaseTemplates[platform]?.map((u) => (
-                  <button
-                    key={u.id}
-                    onClick={() => setUseCase(u.id)}
-                    className={`p-5 rounded-2xl border-2 transition-all text-left flex items-start gap-4 ${
-                      useCase === u.id 
-                        ? 'border-indigo-600 bg-indigo-50/50' 
-                        : 'border-gray-100 bg-white hover:border-gray-200'
-                    }`}
-                  >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                      useCase === u.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'
-                    }`}>
-                      {u.icon}
-                    </div>
-                    <div>
-                      <p className="font-bold text-gray-900 text-sm">{u.label}</p>
-                      <p className="text-xs text-gray-500 mt-1">{u.desc}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setStep(1)}
-                  className="flex-1 py-4 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-50 transition-all"
-                >
-                  Back
-                </button>
-                <button
-                  onClick={() => setStep(3)}
-                  className="flex-[2] py-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center"
-                >
-                  Continue
-                  <ArrowRight className="ml-2 w-5 h-5" />
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-          {!isFinishing && step === 3 && (
-            <motion.div 
               key="step1"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -571,17 +516,17 @@ export default function BotCreation() {
                   <label className="block text-sm font-bold text-gray-700 mb-2">Use Case</label>
                   <button
                     type="button"
-                    onClick={() => setIsPersonalityDropdownOpen(!isPersonalityDropdownOpen)}
+                    onClick={() => setIsUseCaseDropdownOpen(!isUseCaseDropdownOpen)}
                     className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl flex items-center justify-between hover:border-indigo-300 transition-all font-bold text-sm"
                   >
                     <div className="flex items-center space-x-3">
                       {useCaseTemplates[platform]?.find(u => u.id === useCase)?.icon}
                       <span className="capitalize">{useCaseTemplates[platform]?.find(u => u.id === useCase)?.label}</span>
                     </div>
-                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isPersonalityDropdownOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isUseCaseDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
                   <AnimatePresence>
-                    {isPersonalityDropdownOpen && (
+                    {isUseCaseDropdownOpen && (
                       <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -592,7 +537,7 @@ export default function BotCreation() {
                           <button
                             key={u.id}
                             type="button"
-                            onClick={() => { setUseCase(u.id); setIsPersonalityDropdownOpen(false); }}
+                            onClick={() => { setUseCase(u.id); setIsUseCaseDropdownOpen(false); }}
                             className="w-full p-4 text-left hover:bg-gray-50 flex items-center space-x-3"
                           >
                             <div className="text-indigo-600">{u.icon}</div>
@@ -622,13 +567,13 @@ export default function BotCreation() {
                 </div>
                 <div className="flex gap-4 pt-4">
                   <button
-                    onClick={() => setStep(2)}
+                    onClick={() => setStep(1)}
                     className="flex-1 py-4 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-50 transition-all"
                   >
                     Back
                   </button>
                   <button
-                    onClick={() => setStep(4)}
+                    onClick={() => setStep(3)}
                     disabled={!botName || !companyName}
                     className="flex-[2] py-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 flex items-center justify-center disabled:opacity-50"
                   >
@@ -640,7 +585,7 @@ export default function BotCreation() {
             </motion.div>
           )}
 
-          {!isFinishing && step === 4 && (
+          {!isFinishing && step === 3 && (
             <motion.div 
               key="step4"
               initial={{ opacity: 0, x: 20 }}
@@ -904,7 +849,7 @@ export default function BotCreation() {
                 
                 <div className="flex gap-4">
                   <button
-                    onClick={() => setStep(3)}
+                    onClick={() => setStep(2)}
                     className="flex-1 py-4 bg-white border border-gray-200 text-gray-700 rounded-xl font-bold hover:bg-gray-50 transition-all shadow-sm"
                   >
                     Back
@@ -931,9 +876,9 @@ export default function BotCreation() {
             </motion.div>
           )}
 
-          {!isFinishing && step === 5 && (
+          {!isFinishing && step === 4 && (
             <motion.div 
-              key="step5"
+              key="step4_success"
               initial={{ opacity: 0, scale: 0.8, rotateX: 45 }}
               animate={{ opacity: 1, scale: 1, rotateX: 0 }}
               transition={{ 

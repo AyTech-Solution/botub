@@ -15,6 +15,10 @@ const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({
   httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
 }) : null;
 
+if (!process.env.GEMINI_API_KEY) {
+  console.warn("CRITICAL: GEMINI_API_KEY is missing from environment. AI features will fallback to deterministic engine.");
+}
+
 // --- MAILING LOGIC (Merged to prevent Vercel import issues) ---
 const port = parseInt(process.env.SMTP_PORT || "587");
 const isSecure = process.env.SMTP_SECURE === "true" || port === 465;
@@ -145,11 +149,14 @@ function roughScrapChat(query: string, knowledgeBase: string, personality: strin
 
 // --- GEMINI AI ENGINE ---
 async function geminiChat(query: string, knowledgeBase: string, personality: string) {
-  if (!ai) return roughScrapChat(query, knowledgeBase, personality);
+  if (!ai) {
+    console.log("No AI instance, using roughScrapChat fallback");
+    return roughScrapChat(query, knowledgeBase, personality);
+  }
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash", // Using 1.5-flash as it's highly stable
       contents: `You are an AI chatbot for a business. Use the provided Knowledge Base to answer the user query concisely.
       
 PERSONALITY: ${personality}
@@ -162,9 +169,16 @@ Rules:
 1. Only answer based on the knowledge base.
 2. If info is missing, say you don't know exactly but suggest contacting support.
 3. Keep it professional/natural based on personality.
-4. Do NOT include phrases like "According to the database".`,
+4. Do NOT include phrases like "According to the database".
+5. Use the user's language (Hindi/English mixing is OK).`,
     });
-    return response.text || roughScrapChat(query, knowledgeBase, personality);
+    
+    if (!response.text) {
+       console.log("Gemini returned empty text, falling back");
+       return roughScrapChat(query, knowledgeBase, personality);
+    }
+    
+    return response.text;
   } catch (err) {
     console.error("Gemini Chat Error:", err);
     return roughScrapChat(query, knowledgeBase, personality);
@@ -176,20 +190,21 @@ async function geminiAnalyze(text: string, title: string, description: string) {
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: `Analyze the following website content for a business and extract key information.
+      model: "gemini-1.5-flash",
+      contents: `Analyze the following website content for a business and extract key information for an AI chatbot's knowledge base.
       
 TITLE: ${title}
 DESCRIPTION: ${description}
 CONTENT:
-${text.substring(0, 10000)}
+${text.substring(0, 15000)}
 
-Output a structured knowledge base for a chatbot. Include:
-1. Business Overview
-2. Services/Products with details
-3. Pricing if found
-4. Contact info (emails, phones, address)
-5. FAQ potential data`,
+Output a structured knowledge base. Include:
+1. Business Overview & Mission
+2. Comprehensive list of Services/Products with specific features
+3. Pricing plans, rates, and offer details
+4. Contact info (emails, phones, address, social media)
+5. FAQ potential data (common questions and answers)
+6. Business hours or location if found`,
     });
     return response.text || roughScrapAnalysis(text, title, description);
   } catch (err) {
@@ -279,7 +294,9 @@ apiRouter.get("/config-status", (req, res) => {
   res.json({ 
     server: "Vercel Production", 
     db: !!process.env.FIREBASE_PROJECT_ID, 
-    mail: !!process.env.SMTP_USER 
+    mail: !!process.env.SMTP_USER,
+    ai: !!process.env.GEMINI_API_KEY,
+    ai_initialized: !!ai
   });
 });
 
