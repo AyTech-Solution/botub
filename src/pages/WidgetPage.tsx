@@ -44,8 +44,8 @@ export default function WidgetPage() {
       recognitionRef.current.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         setInput(transcript);
-        // Automatically send after voice input
-        setTimeout(() => handleSend(), 500);
+        // Automatically send after voice input with the transcription directly
+        handleSend(undefined, transcript);
       };
       recognitionRef.current.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
@@ -144,14 +144,15 @@ export default function WidgetPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = async (e?: React.FormEvent) => {
+  const handleSend = async (e?: React.FormEvent, overrideInput?: string) => {
     e?.preventDefault();
-    if (!input.trim() || loading || !bot) return;
+    const messageText = overrideInput || input;
+    if (!messageText.trim() || loading || !bot) return;
 
     const userMessage = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: messageText,
       timestamp: new Date().toISOString()
     };
 
@@ -160,14 +161,13 @@ export default function WidgetPage() {
     setLoading(true);
 
     try {
-      const fullKnowledge = (knowledge || []).map(k => k.content).join('\n\n') || `
-        Company: ${bot.companyName || 'N/A'}
-        Details: ${bot.companyDetails || 'N/A'}
-        Links: ${(bot.links || []).join(', ') || 'N/A'}
-      `;
+      const knowledgeContent = (knowledge || []).map(k => k.content).join('\n\n');
+      const companyBio = bot.companyDetails || '';
+      
+      const fullKnowledge = `${knowledgeContent}\n\nCOMPANY OVERVIEW & DETAILS:\n${companyBio}\n\nOFFICIAL LINKS:\n${(bot.links || []).join(', ')}`;
       
       const response = await generateBotResponse(
-        input, 
+        messageText, 
         fullKnowledge, 
         bot.personality || 'friendly', 
         bot.customInstructions || '', 

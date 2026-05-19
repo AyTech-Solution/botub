@@ -137,24 +137,25 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
       }
     });
 
-    const response = await model.generateContent(`You are an intelligent, helpful, and very human-like AI business assistant.
+    const response = await model.generateContent(`You are an intelligent, helpful AI business assistant.
     
-BUSINESS DETAILS:
-${cleanKB}
+CONTEXT INFORMATION (BUSINESS KNOWLEDGE):
+${cleanKB || 'No specific details provided yet. Greet the user and offer general assistance.'}
 
 USER'S MESSAGE:
 ${query}
 
 TONE/PERSONALITY: ${personality}
-PRIMARY LANGUAGE: ${primaryLanguage}
-CUSTOM INSTRUCTIONS: ${customInstructions}
+SUPPORTED LANGUAGES: Hindi, Hinglish, English (Default to user's language)
+PREFERENCE: ${primaryLanguage}
+SPECIAL INSTRUCTIONS: ${customInstructions}
 
-GUIDELINES:
-1. Speak naturally like a human assistant.
-2. Use ONLY the provided business details. Be honest if info is missing.
-3. Support Hinglish/Hindi naturally if the user uses it.
-4. Follow custom instructions strictly.
-5. NEVER mention "the data" or "the knowledge base".`);
+BEHAVIORAL RULES:
+1. Speak naturally, like a human professional representing the business.
+2. Use the provided context info to answer. If specific info is missing, don't invent facts. Instead, acknowledge the query and provide the contact details if available.
+3. If the user uses Hindi or Hinglish, respond in that same natural style.
+4. DO NOT use phrases like "based on my knowledge" or "the documents say".
+5. Keep it concise, professional, and friendly.`);
     
     const text = response.response.text();
     return text || roughScrapChat(query, cleanKB, personality);
@@ -212,36 +213,45 @@ apiRouter.post("/analyze-website", async (req, res) => {
   try {
     const response = await axios.get(url, {
       headers: { 
-        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Cache-Control': 'no-cache',
-        'Referer': 'https://www.google.com/'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
       },
-      timeout: 20000,
-      maxRedirects: 10,
+      timeout: 15000,
+      maxRedirects: 5,
       validateStatus: () => true
     });
 
-    if (response.status >= 400 && response.status !== 404 && (!response.data || response.data.length < 200)) {
-       // High-security sites might block Googlebot, try a standard modern browser as last resort
-       const retryResponse = await axios.get(url, {
-         headers: { 
-           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-         },
-         timeout: 10000
-       }).catch(() => null);
-       
-       if (retryResponse && retryResponse.data) {
-         Object.assign(response, retryResponse);
+    if (response.status >= 400 || !response.data || response.data.length < 500) {
+       // Only retry if it failed significantly or returned very little data
+       try {
+         const retryResponse = await axios.get(url, {
+           headers: { 
+             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+             'Cache-Control': 'no-cache'
+           },
+           timeout: 12000
+         });
+         
+         if (retryResponse && retryResponse.data && retryResponse.status < 400) {
+           // Successfully retried with different headers
+           response.status = retryResponse.status;
+           response.data = retryResponse.data;
+         }
+       } catch (retryErr) {
+         // Silently fail retry, stick with original response
        }
     }
 
     if (response.status >= 400 && response.status !== 404 && (!response.data || response.data.length < 500)) {
       return res.status(response.status).json({ 
         error: "Website restricted access", 
-        suggestion: "This website has high security (Firewall) that blocks automated tools. Please copy the key information from the site and paste it into the details box manually." 
+        suggestion: "This website has active firewalls blocking automated tools. To continue, simply copy the text from your website and paste it into the details box below!" 
       });
     }
 
@@ -249,7 +259,7 @@ apiRouter.post("/analyze-website", async (req, res) => {
     const $ = load(html);
     
     // Improved removal of junk to focus on content
-    $(`script, style, noscript, iframe, footer, nav, aside, svg, .sidebar, #sidebar, .footer, #footer, .cookie-banner, .ads, .popup, header, .nav-menu, .mobile-menu`).remove();
+    $(`script, style, noscript, iframe, footer, nav, aside, svg, .sidebar, #sidebar, .footer, #footer, .cookie-banner, .ads, .popup`).remove();
     
     const title = $('title').text() || $('meta[property="og:title"]').attr('content') || 'Website';
     const description = $('meta[name="description"]').attr('content') || '';
@@ -258,12 +268,12 @@ apiRouter.post("/analyze-website", async (req, res) => {
     let mainText = $('main, article, #content, .content, .main-container, .page-content, .entry-content, body').text();
     mainText = mainText.replace(/\s\s+/g, ' ').replace(/\n\s*\n/g, '\n').trim();
 
-    if (mainText.length < 150) {
+    if (mainText.length < 50) {
       // Fallback: Just grab all text if specific selectors failed
       mainText = $('body').text().replace(/\s\s+/g, ' ').trim();
     }
 
-    if (mainText.length < 150) {
+    if (mainText.length < 50) {
       return res.status(422).json({ 
         error: "Scanning limitation", 
         suggestion: "We couldn't read enough text from this URL. It might be blocked or require JavaScript. Please paste the content manually into the details box." 
