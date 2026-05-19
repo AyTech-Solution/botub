@@ -2,13 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { doc, setDoc, collection, addDoc, getDocs, query, where, getDoc } from 'firebase/firestore';
-import { analyzeWebsite, parseFile, analyzeText } from '../services/botService';
+import { analyzeWebsite, analyzeText } from '../services/botService';
 import { 
   Bot, 
   Globe,
   Building2, 
   FileText,
-  Upload,
   Link as LinkIcon,
   ArrowRight, 
   Loader2,
@@ -107,7 +106,6 @@ export default function BotCreation() {
   const [botCount, setBotCount] = useState(0);
   const [createdBotId, setCreatedBotId] = useState('');
   const [isFinishing, setIsFinishing] = useState(false);
-  const [fileUploading, setFileUploading] = useState(false);
   const [scannedSuggestions, setScannedSuggestions] = useState<{text: string, url: string}[]>([]);
   
   // New Premium Features State
@@ -222,28 +220,6 @@ export default function BotCreation() {
       setSuggestion(err.suggestion || "Please try pasting the content manually.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setFileUploading(true);
-    try {
-      const data = await parseFile(file);
-      const content = data.result?.knowledgeBase || data.result;
-      setDetails(prev => {
-        const base = prev.trim();
-        return base ? base + "\n\nExtracted from document (" + file.name + "):\n" + content : content;
-      });
-      toast.success(`Successfully uploaded ${file.name}`);
-    } catch (err: any) {
-      console.error("File Upload Error:", err);
-      toast.error(err.message || "Failed to upload file.");
-    } finally {
-      setFileUploading(false);
-      e.target.value = '';
     }
   };
 
@@ -662,28 +638,6 @@ export default function BotCreation() {
                       >
                         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Scan"}
                       </button>
-                    </div>
-
-                    {/* File Upload Section */}
-                    <div className="bg-indigo-50/20 p-5 rounded-2xl border border-indigo-100 border-dashed">
-                      <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Upload PDF or TXT</label>
-                      <div className="flex flex-col items-center justify-center border-2 border-dashed border-indigo-100 rounded-xl p-4 bg-white hover:bg-indigo-50/50 transition-all cursor-pointer relative group">
-                        <input
-                          type="file"
-                          accept=".pdf,.txt"
-                          onChange={handleFileUpload}
-                          className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                          disabled={fileUploading}
-                        />
-                        {fileUploading ? (
-                          <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
-                        ) : (
-                          <div className="flex items-center space-x-2">
-                            <Upload className="w-4 h-4 text-indigo-400" />
-                            <p className="text-xs font-bold text-gray-600">Click to upload doc</p>
-                          </div>
-                        )}
-                      </div>
                     </div>
 
                     {error && (

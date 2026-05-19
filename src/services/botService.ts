@@ -31,35 +31,6 @@ export async function analyzeWebsite(url: string) {
   }
 }
 
-export async function parseFile(file: File) {
-  try {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const fetchResponse = await fetch('/api/parse-file', {
-      method: 'POST',
-      body: formData
-    });
-
-    if (!fetchResponse.ok) {
-      const respText = await fetchResponse.text().catch(() => 'No response body');
-      let errorData;
-      try {
-        errorData = JSON.parse(respText);
-      } catch (e) {
-        throw new Error(`Server error (${fetchResponse.status}): ${respText.substring(0, 100)}`);
-      }
-      throw new Error(errorData.error || 'Failed to parse file');
-    }
-
-    const data = await fetchResponse.json();
-    return data;
-  } catch (err: any) {
-    console.error("Error parsing file:", err);
-    throw err;
-  }
-}
-
 export async function analyzeText(text: string, title?: string) {
   try {
     const fetchResponse = await fetch('/api/analyze-text', {

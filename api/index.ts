@@ -5,19 +5,11 @@ import cors from "cors";
 import nodemailer from "nodemailer";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import "dotenv/config";
-import multer from "multer";
 import https from "https";
-// @ts-ignore
-import pdf from "pdf-parse";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-const upload = multer({ 
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
-});
 
 // --- GEMINI AI CONFIG ---
 const ai = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
@@ -187,61 +179,51 @@ ${query}`;
 }
 
 async function geminiAnalyze(text: string, title: string, description: string) {
-  if (!ai) return roughScrapAnalysis(text, title, description);
+  const fallback = roughScrapAnalysis(text, title, description);
+  if (!ai || !text) return fallback;
   
   try {
-    const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const response = await model.generateContent(`Act as an Expert Knowledge Architect & Business Analyst.
-Analyze the following raw text extracted from a business website or document. 
-Create a highly structured Knowledge Base for a business AI Chatbot.
+    const model = ai.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      generationConfig: { maxOutputTokens: 1000 }
+    });
 
-SOURCE: ${title} (${description})
-
-RAW CONTENT:
-${text.substring(0, 20000)}
-
-YOUR TASK:
-1. TRANSFORM the raw text into a professional, clear, and comprehensive Knowledge Base.
-2. SECTIONS to include: # Overview, # Services & Products, # Pricing, # Contact Details, # FAQs, # Policies.
-3. MISSING INFO: Identify what important information is MISSING from the text (e.g., precise pricing, WhatsApp number, specific policies, refund info).
-
-OUTPUT FORMAT:
-Return a JSON object with this exact structure:
+    const response = await model.generateContent(`Analyze this business text. Return ONLY a JSON object:
 {
-  "knowledgeBase": "Markdown formatted KB content...",
-  "missingTips": ["Tip 1: Add your WhatsApp number", "Tip 2: Define your refund policy..."],
-  "businessName": "Detected Business Name"
+  "knowledgeBase": "Markdown content...",
+  "missingTips": ["Tip 1"],
+  "businessName": "Name"
 }
 
-RULES:
-- Be factual. Do not invent details.
-- If pricing isn't found, state "Available on request" in KB but add it to missingTips.
-- Use natural, professional language.`);
+SOURCE: ${title}
+CONTENT: ${text.substring(0, 8000)}`);
     
-    const responseText = response.response.text();
-    // Try to parse JSON from Markdown code block or raw
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0]);
-      } catch (e) {
-        console.error("JSON Parse Error on Gemini output:", e);
-      }
-    }
-    
-    // Fallback if JSON fails
-    if (!responseText) {
-      return roughScrapAnalysis(text, title, description);
+    let rText = "";
+    try {
+      const gRes = await response.response;
+      rText = gRes.text();
+    } catch (e) {
+      return fallback;
     }
 
+    if (!rText || rText.length < 5) return fallback;
+    
+    const jsonM = rText.match(/\{[\s\S]*\}/);
+    if (jsonM) {
+      try {
+        const parsed = JSON.parse(jsonM[0]);
+        if (parsed.knowledgeBase) return parsed;
+      } catch (e) {}
+    }
+    
     return { 
-      knowledgeBase: responseText,
-      missingTips: ["Please verify and refine the details extracted."],
+      knowledgeBase: rText,
+      missingTips: ["Please verify details."],
       businessName: title
     };
   } catch (err) {
     console.error("Gemini Analyze Error:", err);
-    return roughScrapAnalysis(text, title, description);
+    return fallback;
   }
 }
 
@@ -321,39 +303,8 @@ apiRouter.post("/analyze-website", async (req, res) => {
     const result = await geminiAnalyze(extractedText, title, description);
     res.json({ result, title, crawledCount: 1 });
   } catch (err: any) {
-    console.error("Scanner Error:", err.message);
-    res.status(500).json({ error: "Scanner Error", suggestion: "Failed to connect. Please paste tech manually." });
-  }
-});
-
-apiRouter.post("/parse-file", upload.single("file"), async (req, res) => {
-  const file = req.file;
-  if (!file) return res.status(400).json({ error: "No file uploaded" });
-
-  try {
-    let text = "";
-    if (file.mimetype === "application/pdf") {
-      const data = await pdf(file.buffer);
-      text = data.text;
-    } else if (file.mimetype === "text/plain" || file.mimetype === "text/markdown") {
-      text = file.buffer.toString("utf-8");
-    } else {
-      return res.status(400).json({ error: "Unsupported file type. Please upload PDF or TXT." });
-    }
-
-    if (!text || !text.trim()) {
-      return res.status(422).json({ error: "Empty file or no readable text found." });
-    }
-
-    // Clean up text (remove excessive newlines/spaces)
-    const cleanText = text.replace(/\s\s+/g, ' ').trim();
-    
-    // Use Gemini to structure the extracted text
-    const result = await geminiAnalyze(cleanText.substring(0, 15000), file.originalname, "Uploaded Document Content");
-    res.json({ result, title: file.originalname });
-  } catch (err) {
-    console.error("File Parse Error:", err);
-    res.status(500).json({ error: "Failed to parse file. Ensure it's not password protected." });
+    console.error("Scanner Error:", err);
+    res.status(500).json({ error: "Scanner encountered a critical failure. Please paste info manually." });
   }
 });
 
