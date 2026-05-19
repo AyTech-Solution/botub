@@ -271,143 +271,58 @@ apiRouter.post("/analyze-website", async (req, res) => {
   if (!url) return res.status(400).json({ error: "URL is required" });
   if (!url.startsWith('http')) url = 'https://' + url;
 
-  console.log(`Starting scan for: ${url}`);
+  console.log(`Cheerio Analysis for: ${url}`);
 
   try {
-    let response: any = null;
-    const userAgents = [
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0'
-    ];
-
     const agent = new https.Agent({ rejectUnauthorized: false });
+    const response = await axios.get(url, {
+      headers: { 
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache'
+      },
+      timeout: 15000,
+      httpsAgent: agent,
+      validateStatus: () => true
+    });
 
-    // Multi-agent retry logic with increasing wait times or different headers
-    for (const ua of userAgents) {
-      try {
-        const res = await axios.get(url, {
-          headers: { 
-            'User-Agent': ua,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache',
-            'Referer': 'https://www.google.com/',
-            'Sec-Ch-Ua': '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
-            'Sec-Ch-Ua-Mobile': '?0',
-            'Sec-Ch-Ua-Platform': '"Windows"',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'cross-site',
-            'Upgrade-Insecure-Requests': '1'
-          },
-          timeout: 12000,
-          maxRedirects: 10,
-          validateStatus: () => true,
-          httpsAgent: agent
-        });
-
-        if (res.status === 200 && res.data && typeof res.data === 'string' && res.data.length > 800) {
-          response = res;
-          break;
-        }
-        
-        // Keep the best "failed" response to show status code if all fail
-        if (!response || (res.status < 400 && res.data?.length > (response.data?.length || 0))) {
-          response = res;
-        }
-      } catch (e) {
-        console.warn(`Attempt failed for ${ua.substring(0, 20)}...`);
-      }
-    }
-
-    if (!response || !response.data || response.data.length < 100) {
-      const status = response?.status || 500;
-      return res.json({ 
-        result: {
-          knowledgeBase: "",
-          missingTips: [
-            "SCAN BLOCKED: Website protection prevents auto-scanning.",
-            "Manual Input Needed: Please paste 'Services' & 'Pricing' text below.",
-            "Contact Info: Manually add your WhatsApp/Email info."
-          ],
-          businessName: ""
-        },
-        title: "Scanning Blocked",
-        crawledCount: 0
-      });
-    }
-
-    const html = response.data;
-    if (typeof html !== 'string') {
-      return res.status(422).json({ error: "Scanner received non-text data from the link." });
-    }
-
-    const $ = load(html);
-    
-    // Check if it's a JS-heavy SPA shell
-    const bodyText = $('body').text().trim();
-    if (bodyText.length < 200 && html.includes('<script') && (html.toLowerCase().includes('javascript') || html.toLowerCase().includes('enable'))) {
-       return res.status(422).json({
-         error: "JavaScript Required",
-         suggestion: "This looks like a modern dynamic app. Our scanner can only read static text. Kripya manual content paste karein."
+    if (response.status >= 400 || !response.data) {
+       return res.status(response.status || 500).json({ 
+         error: "Access Restriction", 
+         suggestion: "This site is protected. Please manually paste its text below." 
        });
     }
 
-    // Comprehensive clean up - ignore non-content elements
-    $(`script, style, noscript, iframe, footer, nav, aside, svg, .sidebar, #sidebar, .cookie-banner, .ads, .popup`).remove();
+    const html = response.data;
+    const $ = load(html);
     
-    // Extract potential links for suggestions (Frontend can use this)
-    const extraLinks: { text: string; url: string }[] = [];
-    $('a').each((_, el) => {
-      const text = $(el).text().trim().toLowerCase();
-      const href = $(el).attr('href');
-      if (href && (text.includes('about') || text.includes('pricing') || text.includes('service') || text.includes('contact') || text.includes('plan')) && !href.startsWith('#')) {
-        try {
-          const absoluteUrl = new URL(href, url).toString();
-          if (absoluteUrl.startsWith(url) && extraLinks.length < 5) {
-            extraLinks.push({ text: $(el).text().trim(), url: absoluteUrl });
-          }
-        } catch (e) {}
-      }
-    });
-
-    const title = $('title').text() || $('meta[property="og:title"]').attr('content') || 'Business Website';
+    // Primary Cheerio Text Extraction
+    $(`script, style, noscript, iframe, footer, nav, aside, svg, .cookie-banner, .ads`).remove();
+    
+    const title = $('title').text() || $('meta[property="og:title"]').attr('content') || 'Website';
     const description = $('meta[name="description"]').attr('content') || '';
     
-    // Attempt structured text extraction to preserve hierarchy
-    let structuredText = "";
+    let extractedText = "";
     $('h1, h2, h3, p, li').each((_, el) => {
-      const tag = (el as any).name;
       const text = $(el).text().trim();
-      if (text.length > 5) {
-        if (tag.startsWith('h')) structuredText += `\n[HEADER: ${text}]\n`;
-        else structuredText += `${text}\n`;
-      }
+      if (text.length > 10) extractedText += `${text}\n`;
     });
 
-    if (structuredText.length < 300) {
-      structuredText = $('body').text().replace(/\s\s+/g, ' ').replace(/\n\s*\n/g, '\n');
-    }
-    
-    if (structuredText.length < 100) {
-      return res.status(422).json({ 
-        error: "Scanning Empty", 
-        suggestion: "We couldn't extract enough meaningful text. Please paste the info manually into the Knowledge box." 
-      });
+    if (extractedText.length < 200) {
+      extractedText = $('body').text().replace(/\s\s+/g, ' ').substring(0, 5000);
     }
 
-    console.log(`Successfully scanned ${structuredText.length} characters. Processing with Gemini...`);
-    const result = await geminiAnalyze(structuredText.substring(0, 18000), title, description);
-    res.json({ result, title, crawledCount: 1, suggestions: extraLinks });
+    if (extractedText.length < 50) {
+      return res.status(422).json({ error: "Empty Content", suggestion: "Scanner couldn't read the page. Manual input needed." });
+    }
+
+    console.log(`Extracted ${extractedText.length} characters with Cheerio.`);
+    const result = await geminiAnalyze(extractedText, title, description);
+    res.json({ result, title, crawledCount: 1 });
   } catch (err: any) {
-    console.error("Critical Scanner Error:", err);
-    res.status(500).json({ 
-      error: "Scanner Connection Interrupted", 
-      suggestion: "Target site refused connection. Please paste the info manually."
-    });
+    console.error("Scanner Error:", err.message);
+    res.status(500).json({ error: "Scanner Error", suggestion: "Failed to connect. Please paste tech manually." });
   }
 });
 

@@ -5,12 +5,11 @@ import { doc, setDoc, collection, addDoc, getDocs, query, where, getDoc } from '
 import { analyzeWebsite, parseFile, analyzeText } from '../services/botService';
 import { 
   Bot, 
-  Globe, 
+  Globe,
   Building2, 
   FileText,
   Upload,
-  File,
-  Link as LinkIcon, 
+  Link as LinkIcon,
   ArrowRight, 
   Loader2,
   CheckCircle2,
@@ -163,15 +162,27 @@ export default function BotCreation() {
     checkLimits();
   }, []);
 
+  const handleOptimizeText = async () => {
+    if (!details || details.length < 20) {
+      toast.error("Please enter more details to optimize.");
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const data = await analyzeText(details, botName || companyName);
+      setDetails(data.result);
+      toast.success("AI significantly improved your knowledge structure!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to optimize text.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAnalyze = async () => {
     if (!websiteUrl) return;
     
-    // Check for localhost or private IPs
-    if (websiteUrl.includes('localhost') || websiteUrl.includes('127.0.0.1') || websiteUrl.includes('192.168.')) {
-      setError('Localhost and private IP addresses cannot be analyzed by our cloud server. Please paste the content manually.');
-      return;
-    }
-
     setLoading(true);
     setError('');
     setSuggestion('');
@@ -191,7 +202,7 @@ export default function BotCreation() {
 
       setDetails(prev => {
         const base = prev.trim();
-        const header = `--- KNOWLEDGE FROM ${websiteUrl.toUpperCase()} ---`;
+        const header = `--- SOURCE: ${websiteUrl.toUpperCase()} ---`;
         return base ? `${base}\n\n${header}\n${knowledgeBase}` : `${header}\n${knowledgeBase}`;
       });
 
@@ -199,26 +210,11 @@ export default function BotCreation() {
          setScannedSuggestions(prev => [...prev, ...missingTips.map(t => ({ text: `TIP: ${t}`, url: '' }))]);
       }
 
-      toast.success("Website analyzed and structured!");
+      toast.success("Website analysis successful!");
     } catch (err: any) {
       console.error("Analysis Exception:", err);
-      
-      let msg = err.message || 'Analysis failed.';
-      let sug = err.suggestion || "You can skip the scan and paste your website info manually below to proceed instantly.";
-
-      if (err.message?.includes('Timeout') || err.message?.includes('8000') || err.message?.includes('15000')) {
-        msg = "The website is responding too slowly (Network Timeout).";
-        sug = "Site response time exceeded our cloud limit. Please copy the text from your website and paste it manually below.";
-      } else if (err.message?.includes('403')) {
-        msg = "Access Forbidden (403).";
-        sug = "This website is blocking our scanner. Please paste the content manually into the details box below—it's the fastest way!";
-      } else if (err.message?.includes('Scanner Blocked') || err.message?.includes('Restricted')) {
-        msg = "Website Scanner Blocked.";
-        sug = "The website is protecting itself from automated scans. Don't worry—just copy the text from your website and paste it into the details box below to continue!";
-      }
-      
-      setError(msg);
-      setSuggestion(sug);
+      setError(err.message || 'Analysis failed.');
+      setSuggestion(err.suggestion || "Please try pasting the content manually.");
     } finally {
       setLoading(false);
     }
@@ -227,11 +223,6 @@ export default function BotCreation() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File size exceeds 5MB limit.");
-      return;
-    }
 
     setFileUploading(true);
     try {
@@ -246,26 +237,7 @@ export default function BotCreation() {
       toast.error(err.message || "Failed to upload file.");
     } finally {
       setFileUploading(false);
-      // Reset input
       e.target.value = '';
-    }
-  };
-
-  const handleOptimizeText = async () => {
-    if (!details || details.length < 20) {
-      toast.error("Please enter more details to optimize.");
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      const data = await analyzeText(details, botName || companyName);
-      setDetails(data.result);
-      toast.success("AI significantly improved your knowledge structure!");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to optimize text.");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -661,168 +633,81 @@ export default function BotCreation() {
               <p className="text-gray-500 mb-8">Train your bot with knowledge and define how it should interact.</p>
               
               <div className="space-y-8">
-                {/* Knowledge Section */}
+                {/* Website Section */}
                 <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
                   <div className="flex items-center space-x-2 mb-4">
                     <Globe className="w-5 h-5 text-indigo-600" />
-                    <h3 className="text-lg font-bold text-gray-900">Website Training</h3>
+                    <h3 className="text-lg font-bold text-gray-900">Website Importer</h3>
                   </div>
                   
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Main Website URL</label>
-                          <div className="flex gap-2">
-                            <div className="relative flex-1">
-                              <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                              <input
-                                type="url"
-                                placeholder="https://yourbusiness.com"
-                                value={websiteUrl}
-                                onChange={(e) => setWebsiteUrl(e.target.value)}
-                                className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
-                              />
-                            </div>
-                            <button
-                              onClick={handleAnalyze}
-                              disabled={loading || !websiteUrl}
-                              className="px-5 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center shrink-0 text-sm"
-                            >
-                              {loading ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                                  Deep Scanning...
-                                </>
-                              ) : (
-                                <>
-                                  <Zap className="w-4 h-4 mr-2" />
-                                  Analyze
-                                </>
-                              )}
-                            </button>
-                          </div>
-                          <div className="flex flex-wrap gap-2 mt-3">
-                            {['About Us', 'Pricing', 'Products', 'FAQ', 'Contact'].map((key) => (
-                              <span key={key} className="px-2 py-1 bg-white border border-gray-100 rounded-md text-[9px] font-black uppercase tracking-tighter text-gray-400">
-                                Priority: {key}
-                              </span>
-                            ))}
-                          </div>
-                          <p className="text-[10px] text-gray-400 mt-2">
-                            <strong>Deep Scan:</strong> Our AI will crawl multiple pages to find business rules, services, and policies.
-                          </p>
-                        </div>
-
-                        {/* File Upload Section */}
-                        <div className="bg-indigo-50/30 p-5 rounded-2xl border border-indigo-100 border-dashed">
-                          <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Upload PDF or Text Files</label>
-                          <div className="flex flex-col items-center justify-center border-2 border-dashed border-indigo-200 rounded-xl p-6 bg-white hover:bg-indigo-50/50 transition-all cursor-pointer relative group">
-                            <input
-                              type="file"
-                              accept=".pdf,.txt"
-                              onChange={handleFileUpload}
-                              className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                              disabled={fileUploading}
-                            />
-                            {fileUploading ? (
-                              <div className="flex flex-col items-center">
-                                <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mb-2" />
-                                <p className="text-xs font-bold text-indigo-600">Extracting data...</p>
-                              </div>
-                            ) : (
-                              <div className="flex flex-col items-center">
-                                <Upload className="w-8 h-8 text-indigo-400 group-hover:text-indigo-600 mb-2 transition-colors" />
-                                <p className="text-xs font-bold text-gray-600">Click or drag PDF/TXT files</p>
-                                <p className="text-[10px] text-gray-400 mt-1">Max 5MB per file</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Additional URLs */}
-                        <div className="space-y-3">
-                          <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Additional Training URLs (Help Center, Docs, etc.)</label>
-                          {additionalUrls.map((url, index) => (
-                            <motion.div 
-                              initial={{ opacity: 0, x: -10 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              key={index} 
-                              className="flex gap-2"
-                            >
-                              <div className="relative flex-1">
-                                <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                                <input
-                                  type="url"
-                                  placeholder="https://docs.yourbusiness.com"
-                                  value={url}
-                                  onChange={(e) => {
-                                    const newUrls = [...additionalUrls];
-                                    newUrls[index] = e.target.value;
-                                    setAdditionalUrls(newUrls);
-                                  }}
-                                  className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
-                                />
-                              </div>
-                              <button
-                                onClick={() => setAdditionalUrls(additionalUrls.filter((_, i) => i !== index))}
-                                className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </motion.div>
-                          ))}
-                          <button
-                            onClick={() => setAdditionalUrls([...additionalUrls, ''])}
-                            className="text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:underline flex items-center"
-                          >
-                            <LinkIcon className="w-3 h-3 mr-1" />
-                            + Add another URL
-                          </button>
-                        </div>
-
-                        {analysisResult && (
-                      <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        className="p-4 bg-green-50 rounded-xl border border-green-100"
+                  <div className="space-y-4">
+                    <div className="flex gap-2">
+                       <input
+                        type="url"
+                        placeholder="https://yourbusiness.com"
+                        value={websiteUrl}
+                        onChange={(e) => setWebsiteUrl(e.target.value)}
+                        className="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+                      />
+                      <button
+                        onClick={handleAnalyze}
+                        disabled={loading || !websiteUrl}
+                        className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center shrink-0 text-sm"
                       >
-                        <div className="flex items-start space-x-3">
-                          <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-xs font-bold text-green-700">Analysis Successful</p>
-                            <p className="text-[10px] text-green-600 mt-1">
-                              AI successfully structured your business details. {scannedSuggestions.length > 0 && "Found more relevant pages below."}
-                            </p>
-                          </div>
-                        </div>
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Scan"}
+                      </button>
+                    </div>
 
-                        {scannedSuggestions.length > 0 && (
-                          <div className="mt-4 pt-4 border-t border-green-100">
-                             <p className="text-[10px] font-black text-green-800 uppercase tracking-widest mb-2">Improve Your Bot (Manual Input Needed):</p>
-                             <div className="flex flex-wrap gap-2">
-                               {scannedSuggestions.map((s, i) => (
-                                 <button
-                                   key={i}
-                                   onClick={() => {
-                                      if (s.url) {
-                                        setWebsiteUrl(s.url);
-                                        setScannedSuggestions(prev => prev.filter((_, idx) => idx !== i));
-                                      }
-                                   }}
-                                   disabled={!s.url}
-                                   className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center shadow-sm ${
-                                     s.url 
-                                       ? "bg-white border border-green-200 text-green-700 hover:bg-green-100" 
-                                       : "bg-indigo-600 text-white border border-indigo-700 cursor-default"
-                                   }`}
-                                 >
-                                   {s.url ? <LinkIcon className="w-3 h-3 mr-1.5" /> : <Zap className="w-3 h-3 mr-1.5" />}
-                                   {s.text}
-                                 </button>
-                               ))}
-                             </div>
+                    {/* File Upload Section */}
+                    <div className="bg-indigo-50/20 p-5 rounded-2xl border border-indigo-100 border-dashed">
+                      <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Upload PDF or TXT</label>
+                      <div className="flex flex-col items-center justify-center border-2 border-dashed border-indigo-100 rounded-xl p-4 bg-white hover:bg-indigo-50/50 transition-all cursor-pointer relative group">
+                        <input
+                          type="file"
+                          accept=".pdf,.txt"
+                          onChange={handleFileUpload}
+                          className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                          disabled={fileUploading}
+                        />
+                        {fileUploading ? (
+                          <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
+                        ) : (
+                          <div className="flex items-center space-x-2">
+                            <Upload className="w-4 h-4 text-indigo-400" />
+                            <p className="text-xs font-bold text-gray-600">Click to upload doc</p>
                           </div>
                         )}
-                      </motion.div>
+                      </div>
+                    </div>
+
+                    {error && (
+                      <div className="p-4 bg-red-50 border border-red-100 rounded-xl">
+                        <p className="text-xs font-bold text-red-600">{error}</p>
+                        {suggestion && <p className="text-[10px] text-red-500 mt-1">{suggestion}</p>}
+                      </div>
+                    )}
+
+                    {analysisResult && (
+                      <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+                        <div className="flex items-center space-x-2 text-emerald-700 mb-2">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <p className="text-xs font-bold">Successfully extracted data</p>
+                        </div>
+                        {scannedSuggestions.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {scannedSuggestions.map((s, i) => (
+                              <button
+                                key={i}
+                                onClick={() => s.url && setWebsiteUrl(s.url)}
+                                disabled={!s.url}
+                                className={`px-2 py-1 rounded text-[9px] font-bold ${s.url ? 'bg-white border border-emerald-200 text-emerald-600' : 'bg-indigo-600 text-white'}`}
+                              >
+                                {s.text}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -851,7 +736,7 @@ export default function BotCreation() {
                            {details.length} chars indexed
                          </span>
                          <button 
-                           onClick={() => { setAnalysisResult(''); setDetails(''); }}
+                           onClick={() => setDetails('')}
                            className="text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline"
                          >
                            Clear
