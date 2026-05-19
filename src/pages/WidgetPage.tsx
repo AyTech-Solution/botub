@@ -65,26 +65,30 @@ export default function WidgetPage() {
           name: 'Botub Support',
           companyName: 'Botub AI / AyTech',
           greetingMessage: "Hi! I'm the Botub Support assistant. How can I help you today?",
-          personality: 'friendly',
+          personality: 'helpful',
           branding: { color: '#4f46e5' },
           showPoweredBy: true,
           primaryLanguage: 'auto',
+          voiceEnabled: false,
+          links: [],
+          customInstructions: 'Be extremely helpful and answer questions about Botub AI features and support.',
           companyDetails: `
             Botub AI is a platform by AyTech Solution to create business chatbots effortlessly.
             Key Services:
-            - AI Chatbots for websites
-            - PDF and Text document training
-            - Lead generation bots
-            - WhatsApp Integration (Upcoming)
-            - Multilingual support (Hindi, English, etc.)
+            - AI Chatbots for websites: Real-time intelligent assistants.
+            - Document training: Upload PDF/Text files for instant knowledge.
+            - Lead generation: Capture customer queries and contact info.
+            - Support: 24/7 automated assistance.
+            
+            AyTech Tech Stack: React, Express, Firebase, Gemini AI.
             
             Pricing:
-            - Basic: Create 1 Bot for free
-            - Pro: Multiple bots, priority support, custom branding
+            - Basic: Free (Create 1 Bot)
+            - Pro: Multiple bots and advanced features.
             
             Contact Info:
             - Email: teamaytech@gmail.com
-            - Phone: +91 7742065298
+            - Mobile: +91 7742065298
             - Location: Jodhpur, Rajasthan, India
           `
         };

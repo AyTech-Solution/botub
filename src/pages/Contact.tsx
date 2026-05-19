@@ -170,11 +170,15 @@ export default function Contact() {
               </p>
               <button 
                 onClick={() => {
-                   window.open('/widget/system-support-bot', '_blank', 'width=400,height=600');
+                   const width = 450;
+                   const height = 700;
+                   const left = (window.screen.width / 2) - (width / 2);
+                   const top = (window.screen.height / 2) - (height / 2);
+                   window.open('/widget/system-support-bot', 'BotubSupportChat', `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes`);
                 }}
-                className="px-6 py-3 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all"
+                className="px-6 py-3 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all shadow-lg"
               >
-                Open Support Chat
+                Start Live Chat
               </button>
             </div>
           </motion.div>

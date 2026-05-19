@@ -212,34 +212,32 @@ apiRouter.post("/analyze-website", async (req, res) => {
   try {
     const response = await axios.get(url, {
       headers: { 
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-        'Sec-Ch-Ua': '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"macOS"',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Cache-Control': 'max-age=0'
       },
-      timeout: 12000,
-      maxRedirects: 8,
+      timeout: 15000,
+      maxRedirects: 5,
       validateStatus: () => true
     });
 
-    if (response.status >= 400 && response.status !== 404) {
+    if (response.status === 403 || response.status === 401) {
+      // Some sites block but might still return partial content or just a block page
+      // We check if there's enough data anyway, but usually it's better to tell user
+    }
+
+    if (response.status >= 400 && response.status !== 404 && (!response.data || response.data.length < 500)) {
       return res.status(response.status).json({ 
         error: "Website restricted access", 
-        suggestion: "This website has high security (Cloudflare/Firewall). Please copy the key information from the site and paste it into the details box manually." 
+        suggestion: "This website has high security (Cloudflare/Firewall) that blocks automated AI tools. Please copy the key information from the site and paste it into the details box manually." 
       });
     }
 
     const $ = load(response.data);
-    $(`script, style, noscript, iframe, footer, nav, aside, svg, .sidebar, #sidebar, .footer, #footer, .cookie-banner, .ads, .popup`).remove();
+    $(`script, style, noscript, iframe, footer, nav, aside, svg, .sidebar, #sidebar, .footer, #footer, .cookie-banner, .ads, .popup, header`).remove();
     
     const title = $('title').text() || $('meta[property="og:title"]').attr('content') || 'Website';
     const description = $('meta[name="description"]').attr('content') || '';
@@ -247,19 +245,20 @@ apiRouter.post("/analyze-website", async (req, res) => {
     let mainText = $('main, article, #content, .content, body').text();
     mainText = mainText.replace(/\s\s+/g, ' ').trim();
 
-    if (mainText.length < 50) {
+    if (mainText.length < 100) {
       return res.status(422).json({ 
         error: "Scanning limitation", 
-        suggestion: "We couldn't read much text from this URL. It might be an interactive app. Please paste the content manually." 
+        suggestion: "We couldn't read enough text from this URL. It might be blocked or require JavaScript. Please paste the content manually into the details box." 
       });
     }
 
     const result = await geminiAnalyze(mainText, title, description);
     res.json({ result, title, crawledCount: 1 });
   } catch (err: any) {
+    console.error("Scanner Error:", err);
     res.status(500).json({ 
       error: "Scanner connection issue", 
-      suggestion: "The website blocked the automated AI scanner. Please bypass this by manually pasting the text from your website into the details box."
+      suggestion: "The website connection failed or was refused. Please bypass this by manually pasting the text from your website into the details box."
     });
   }
 });
