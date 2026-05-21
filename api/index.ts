@@ -29,7 +29,7 @@ function getGeminiClient(): GoogleGenAI | null {
       apiKey: currentKey,
       httpOptions: {
         headers: {
-          'User-Agent': 'aistudio-build-proxy',
+          'User-Agent': 'aistudio-build',
         }
       }
     });
@@ -335,32 +335,8 @@ function roughScrapChat(
       }
     }
 
-    // Wrap the response elegantly based on Bot personality to feel highly "AI"
-    const isEnthusiastic = personality === 'enthusiastic';
-    const isSympathetic = personality === 'sympathetic';
-    const isProfessional = personality === 'professional';
-
-    if (isHindi) {
-      if (isEnthusiastic) {
-        return `Arrey wah, bilkul sahi sawaal pucha aapne! 🚀 Hamare records ke hisab se:\n\n${answerText}\n\nHai na yeh bilkul badiya baat? Aur kuch jaanna chahenge aap? Mujhe batayein! 🔥✨`;
-      } else if (isSympathetic) {
-        return `Haanji bilkul, main aapse fully agree karta hoon aur aapki help karne ke liye taiyar hoon. Hamari company records me ye detail h:\n\n${answerText}\n\nAap kripya batayein agar aapko koi bhi kashth ya asuvidha ho, main solve karunga. 🙏🌸`;
-      } else if (isProfessional) {
-        return `Puchne ke liye dhanyavad. Hamari business guidelines ke anuroop, yahan iski aavashyak details di gayi hain:\n\n${answerText}\n\nHame aasha hai ki ye jaankari aapke liye upyogi hogi. Agar koi anya kashth ho, toh nishochit hokar batayein.`;
-      } else {
-        return `Ji sure, main is baare mein aapko batata hoon! Humare paas iski bilkul sahi jaankari hai:\n\n${answerText}\n\nAasha karta hoon isse aapko help mili hogi. Kuch aur madad chahiye ho toh batayein! 😊✨`;
-      }
-    } else {
-      if (isEnthusiastic) {
-        return `Oh wow, that is an awesome question! 🚀 Let me share the fantastic details with you right away:\n\n${answerText}\n\nSuper cool, right? Please let me know if you would like to know anything else! 🎉✨`;
-      } else if (isSympathetic) {
-        return `I completely understand your query, and I'm very glad to guide you supportively here. Based on our resources:\n\n${answerText}\n\nPlease take your time and let me know if there's anything else I can do to help you. 🙏✨`;
-      } else if (isProfessional) {
-        return `Thank you for your valuable inquiry. In accordance with our official business records, here is the verified information:\n\n${answerText}\n\nWe remain committed to supporting you. Please let us know if you require further assistance or clarification.`;
-      } else {
-        return `I can definitely help you with that! Here is the relevant information from our verified business profile:\n\n${answerText}\n\nHope this is highly helpful! Let me know if you would like me to unpack anything else for you. 😊👍`;
-      }
-    }
+    // Return direct answer format as requested (no artificial prefixes/suffixes)
+    return answerText.trim();
   }
 
   // 8. FINAL CLEVER SUGGESTIVE FALLBACK (Sound very smart!)
@@ -398,18 +374,20 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
     .trim();
 
   const hasKnowledge = cleanKB.length > 20;
-  
-  // Format history for context
-  const historyContext = chatHistory.slice(-6).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content || m.text}`).join('\n');
 
-  const systemPrompt = `You are a real, warm, natural, and friendly human representative of the business. 
-Do NOT sound like a cold machine or standard template. Your replies should be full of life, polite support, empathy, and active listening.
+  const systemPrompt = `You are a highly helpful, smart, warm, and natural conversational AI assistant (like ChatGPT/Gemini) representing the business.
+You got some custom knowledge base records ("OFFICIAL BUSINESS RECORDS / WEBSITE WIKI") which is your supreme source of truth for business-specific details.
 
-CRITICAL DIRECTIVE ON KNOWLEDGE BASE UTILITY:
-1. Your supreme source of truth is the "OFFICIAL BUSINESS RECORDS" listed below.
-2. You MUST prioritize the details, services, contact information, guidelines, pricing, and policies stored in these records to answer any user queries.
-3. Do NOT make up facts, pricing, contact details, or services that are missing from the records.
-4. If a query matches any keywords, services, or topics covered in the OFFICIAL BUSINESS RECORDS, you MUST formulate a detailed, accurate response based strictly on that information.
+CRITICAL CONVERSATIONAL DIRECTIVES:
+1. ALWAYS act like a highly intellectual, helpful AI companion with absolute conversational freedom.
+2. PRIORITIZE the facts, details, services, pricing, guidelines, and contact information from the OFFICIAL BUSINESS RECORDS to answer any business-specific queries. 
+3. If a query is about the business, rely strictly on these records. Do not invent fake prices or fake contact info.
+4. If a query is general in nature (greetings, helpful questions, standard conversation, or general queries), answer beautifully, warmly, and smartly. Genuinely try to bring the conversation back to the business's services and details in a helpful, conversational manner. Never respond with static, robotic denials.
+5. NO SURROUNDING METADATA OR LABELS (STRICT): Do NOT add any surrounding prefixes or suffixes like "Based on the records:", "Source:", "Verified Sources:", "According to our documents:", "As an AI, I found:", or intro/outro comments about how you found the information. Answer DIRECTLY, naturally, and conversationally.
+6. LANGUAGE COMPLIANCE: Mirror the user's language and tone perfectly. If they use a mix of Hindi & English (Hinglish) or everyday Hindi, respond warmly and with natural flow in the same Hinglish/colloquial style, using natural local expressions (like "Ji bilkul", "Haanji", "Aapne bilkul sahi kaha").
+7. VOICE & IDENTITY: Speak in first-person plural: "We", "Us", "Our", "Hum", "Humare". Speak with absolute premium warmth and human-like empathy.
+8. NO DIRECT COPY-PASTING VERBATIM: Never copy and paste multiple lines or entire blocks of raw documentation words into the response. Summarize and rephrase the details elegantly in your own words so that it sounds polished, completely interactive, human, and conversational, rather than sounding like a raw file search results dump.
+9. MULTI-TURN DIALOGUE: Answer the questions intelligently by referencing the actual ongoing dialogue context, and maintain a highly pleasing, logical flow. Feel free to ask nice, relevant, open-ended questions like a friendly support representative.
 
 OFFICIAL BUSINESS RECORDS:
 ${hasKnowledge ? cleanKB : 'No specific custom business details are uploaded yet. Be a super warm, friendly representative of our modern startup platform called Botub. Answer general support, greetings, and generic questions beautifully and intellectually while representing us gracefully.'}
@@ -417,61 +395,59 @@ ${hasKnowledge ? cleanKB : 'No specific custom business details are uploaded yet
 BRAND RULES & COMMUNICATIONS:
 - TONE: ${personality}
 - VOICE: Natural, engaging, supportive and 100% human-like. Never mention technical words like "records", "knowledge base", "database", "system", "retrieved", or "AI model". Speak as a live team representative.
-- LANGUAGE COMPLIANCE: Dynamically and perfectly mirror the user's language. If the user chats in Hinglish (mix of Hindi & English) or colloquial Hindi/English, answer with premium warmth and natural rhythm in the same Hinglish / colloquial style using the facts from OFFICIAL BUSINESS RECORDS. Feel free to use suitable local casual markers (like "Ji bilkul", "Aapne thik kaha", "Haanji") while keeping it respectful. Never speak like a robotic translation tool.
-- FORMATTING: Keep paragraphs clean and easy to read. Use bullet points elegantly and keep responses highly engaging with selective emojis that elevate customer delight (e.g. 👋, 😊, ✨, 📞, 👍).
-- IDENTITY: You ARE the company itself. Always speak in first-person plural: "We", "Us", "Our", "Hum", "Humare".
-- GREETINGS: Always respond with absolute sweetness to simple greetings like "Hi", "Hello", "Namaste", or inquiries like "How are you". ${greetingMessage ? `Answer greetings naturally first, and you can also incorporate or say: "${greetingMessage}"` : 'Do NOT use standard template error messages for greetings. Be spontaneous.'}
-- UNKNOWN DEFIANCE: If they ask for specific private business details (like pricing, refund, address) that are completely absent from OFFICIAL BUSINESS RECORDS, apologize with absolute empathy and explain we don't have that specific record set up yet, but immediately try to cross-sell our main services and provide contact info if available in records. If it is general knowledge, answer it smartly with high-quality AI capability!
+- GREETINGS: Respond with delight and absolute sweetness to greetings like "Hi", "Hello", "Namaste". ${greetingMessage ? `Answer greetings naturally first, and you can also incorporate or say: "${greetingMessage}"` : 'Be spontaneous.'}
+- UNKNOWN DEFIANCE: If they ask for specific private business details (like pricing, refund, address) that are completely absent from OFFICIAL BUSINESS RECORDS, apologize with absolute empathy and explain we don't have that specific record set up yet, but immediately try to cross-sell our main services and provide contact info if available in records.
 - CUSTOM BRAIN INSTRUCTION: ${customInstructions || 'None'}`;
+
+  // Build conversational turns natively for Gemini
+  const contents: any[] = [];
+  if (chatHistory && chatHistory.length > 0) {
+    chatHistory.slice(-8).forEach(m => {
+      const role = m.role === 'user' ? 'user' : 'model';
+      const text = m.content || m.text || '';
+      if (text.trim()) {
+        contents.push({
+          role,
+          parts: [{ text }]
+        });
+      }
+    });
+  }
+
+  // Safely ensure that the first message has the role 'user' (Gemini requirement)
+  while (contents.length > 0 && contents[0].role === 'model') {
+    contents.shift();
+  }
+
+  // Append the current user query
+  contents.push({
+    role: 'user',
+    parts: [{ text: query }]
+  });
 
   // Try Gemini 3.5 Flash first
   const client = getGeminiClient();
   if (client) {
     try {
-      console.log("🤖 Attempting chat completion with Gemini 3.5 Flash (Google Search Grounding Active)...");
+      console.log("🤖 Attempting chat completion with Gemini 3.5 Flash using structured turns...");
       const response = await client.models.generateContent({
         model: "gemini-3.5-flash",
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: `CONVERSATION HISTORY:
-${historyContext || 'New session'}
-
-USER QUERY: ${query}` }]
-          }
-        ],
+        contents,
         config: {
           systemInstruction: systemPrompt,
           temperature: 0.85,
           topP: 0.95,
-          maxOutputTokens: 1000,
-          tools: [{ googleSearch: {} }]
+          maxOutputTokens: 1000
         }
       });
 
       let text = response.text;
       if (text && text.length >= 2) {
-        const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-        if (chunks && Array.isArray(chunks) && chunks.length > 0) {
-          const uniqueSources = new Map<string, string>();
-          for (const chunk of chunks) {
-            const web = chunk.web;
-            if (web && web.uri) {
-              uniqueSources.set(web.uri, web.title || web.uri);
-            }
-          }
-          if (uniqueSources.size > 0) {
-            text += "\n\n🌐 **Verified Sources:**";
-            uniqueSources.forEach((title, uri) => {
-              text += `\n- [${title}](${uri})`;
-            });
-          }
-        }
         return text;
       }
       throw new Error("Empty Gemini response");
     } catch (err: any) {
-      console.warn("⚠️ Gemini 3.5 Flash failed, trying fallback. Error details:", err.message || err);
+      console.warn("⚠️ Gemini 3.5 Flash failed, trying Llama 3.3 / Groq. Error details:", err.message || err);
     }
   }
 
@@ -509,53 +485,28 @@ USER QUERY: ${query}` }]
     }
   }
 
-  // Backup Retry: try Gemini dev model
+  // Backup Retry: try Gemini dev model (gemini-3.1-flash-lite)
   if (client) {
     try {
-      console.log("🤖 Attempting last-resort with gemini-2.5-flash (Google Search Grounding Active)...");
+      console.log("🤖 Attempting last-resort with gemini-3.1-flash-lite...");
       const retryResponse = await client.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: `CONVERSATION HISTORY:
-${historyContext || 'New session'}
-
-USER QUERY: ${query}` }]
-          }
-        ],
+        model: "gemini-3.1-flash-lite",
+        contents,
         config: {
           systemInstruction: systemPrompt,
           temperature: 0.82,
           topP: 0.92,
-          maxOutputTokens: 1000,
-          tools: [{ googleSearch: {} }]
+          maxOutputTokens: 1000
         }
       });
 
       let retryText = retryResponse.text;
       if (retryText && retryText.length >= 2) {
-        const chunks = retryResponse.candidates?.[0]?.groundingMetadata?.groundingChunks;
-        if (chunks && Array.isArray(chunks) && chunks.length > 0) {
-          const uniqueSources = new Map<string, string>();
-          for (const chunk of chunks) {
-            const web = chunk.web;
-            if (web && web.uri) {
-              uniqueSources.set(web.uri, web.title || web.uri);
-            }
-          }
-          if (uniqueSources.size > 0) {
-            retryText += "\n\n🌐 **Verified Sources:**";
-            uniqueSources.forEach((title, uri) => {
-              retryText += `\n- [${title}](${uri})`;
-            });
-          }
-        }
-        console.log("✅ Successfully recovered using gemini-2.5-flash with search routing!");
+        console.log("✅ Successfully recovered using gemini-3.1-flash-lite!");
         return retryText;
       }
     } catch (retryErr: any) {
-      console.error("❌ gemini-2.5-flash fallback failed:", retryErr.message || retryErr);
+      console.error("❌ gemini-3.1-flash-lite fallback failed:", retryErr.message || retryErr);
     }
   }
 
