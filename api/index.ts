@@ -12,19 +12,31 @@ app.use(cors());
 app.use(express.json());
 
 // --- GEMINI AI CONFIG ---
-const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build-proxy',
-    }
-  }
-}) : null;
+let aiInstance: GoogleGenAI | null = null;
+let lastApiKeyUsed: string | undefined = undefined;
 
-if (!process.env.GEMINI_API_KEY) {
-  console.warn("⚠️ GEMINI_API_KEY is missing from environment. Using deterministic engine as fallback.");
-} else {
-  console.log("✅ Gemini AI Engine configured with key from environment.");
+function getGeminiClient(): GoogleGenAI | null {
+  const currentKey = process.env.GEMINI_API_KEY;
+  if (!currentKey) {
+    aiInstance = null;
+    lastApiKeyUsed = undefined;
+    return null;
+  }
+  
+  if (!aiInstance || lastApiKeyUsed !== currentKey) {
+    aiInstance = new GoogleGenAI({
+      apiKey: currentKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build-proxy',
+        }
+      }
+    });
+    lastApiKeyUsed = currentKey;
+    console.log("✅ Gemini AI Engine initialized/updated with key from environment.");
+  }
+  
+  return aiInstance;
 }
 
 // --- MAILING LOGIC (Merged to prevent Vercel import issues) ---
@@ -143,7 +155,8 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
     .substring(0, 15000)
     .trim();
 
-  if (!ai) return roughScrapChat(query, cleanKB, personality, greetingMessage);
+  const client = getGeminiClient();
+  if (!client) return roughScrapChat(query, cleanKB, personality, greetingMessage);
 
   try {
     const hasKnowledge = cleanKB.length > 20;
@@ -151,7 +164,7 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
     // Format history for context
     const historyContext = chatHistory.slice(-6).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content || m.text}`).join('\n');
 
-    const response = await ai.models.generateContent({
+    const response = await client.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [
         {
@@ -200,11 +213,12 @@ BRAND RULES:
 
 async function geminiAnalyze(text: string, title: string, description: string) {
   const fallback = roughScrapAnalysis(text, title, description);
-  if (!ai || !text) return fallback;
+  const client = getGeminiClient();
+  if (!client || !text) return fallback;
   
   try {
     // Using gemini-1.5-flash for analysis as it's typically more stable for bulk data processing
-    const response = await ai.models.generateContent({ 
+    const response = await client.models.generateContent({ 
       model: "gemini-3-flash-preview",
       contents: `You are an Expert Business Consultant and Data Architect. Analyze the raw text and structure it into a perfect Knowledge Base.
 
@@ -265,11 +279,14 @@ ${text.substring(0, 10000)}`,
 
 const apiRouter = express.Router();
 
-apiRouter.get("/health", (req, res) => res.json({ 
-  status: "ok", 
-  engine: ai ? "Gemini 3 Flash Preview" : "Deterministic SLM",
-  ai_ready: !!ai
-}));
+apiRouter.get("/health", (req, res) => {
+  const client = getGeminiClient();
+  res.json({ 
+    status: "ok", 
+    engine: client ? "Gemini 3 Flash Preview" : "Deterministic SLM",
+    ai_ready: !!client
+  });
+});
 
 apiRouter.post("/send-report", async (req, res) => {
   const { email, reportContent, subject } = req.body;
@@ -372,12 +389,13 @@ apiRouter.post("/chat", async (req, res) => {
 });
 
 apiRouter.get("/config-status", (req, res) => {
+  const client = getGeminiClient();
   res.json({ 
     server: "Vercel Production", 
     db: !!process.env.FIREBASE_PROJECT_ID, 
     mail: !!process.env.SMTP_USER,
     ai: !!process.env.GEMINI_API_KEY,
-    ai_initialized: !!ai
+    ai_initialized: !!client
   });
 });
 
