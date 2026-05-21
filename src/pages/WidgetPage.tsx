@@ -123,7 +123,7 @@ export default function WidgetPage() {
           setMessages([{
             id: 'greeting',
             role: 'bot',
-            content: botData.greetingMessage || `Hello! I'm ${botData.name}. How can I help you today?`,
+            content: botData.greetingMessage || `Welcome to Botub! How can I help you automate your business today?`,
             timestamp: new Date().toISOString()
           }]);
 

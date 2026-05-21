@@ -117,7 +117,7 @@ export default function BotCreation() {
   const [responseSpeed, setResponseSpeed] = useState('natural');
   const [isResponseSpeedDropdownOpen, setIsResponseSpeedDropdownOpen] = useState(false);
   const [customInstructions, setCustomInstructions] = useState('');
-  const [greetingMessage, setGreetingMessage] = useState('');
+  const [greetingMessage, setGreetingMessage] = useState('Welcome to Botub! How can I help you automate your business today?');
   const [primaryLanguage, setPrimaryLanguage] = useState('auto');
   const [isLanguageDropdownOpen, setIsLanguageDropdownOpen] = useState(false);
   
@@ -310,7 +310,7 @@ export default function BotCreation() {
         voiceOutputEnabled: false,
         voiceId: 'Kore',
         primaryLanguage: primaryLanguage,
-        greetingMessage: greetingMessage.trim() || `Hello! I am ${botName}, your ${companyName} assistant. How can I help you today?`,
+        greetingMessage: greetingMessage.trim() || `Welcome to Botub! How can I help you automate your business today?`,
         customInstructions: initialInstructions,
         integrationParams: {
           webhookUrl: ''

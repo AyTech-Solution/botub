@@ -312,7 +312,7 @@ export default function BotDetail() {
 
   useEffect(() => {
     if (bot && (messages?.length || 0) === 0) {
-      const greeting = bot.greetingMessage || 'Hello! How can I help you today?';
+      const greeting = bot.greetingMessage || 'Welcome to Botub! How can I help you automate your business today?';
       setMessages([{ role: 'bot', text: greeting }]);
     }
   }, [bot, messages?.length]);
@@ -337,7 +337,7 @@ export default function BotDetail() {
     try {
       if (!currentSessionId) {
         const initialMessages = [
-          { role: 'bot', text: bot.greetingMessage || 'Hello! How can I help you today?', timestamp },
+          { role: 'bot', text: bot.greetingMessage || 'Welcome to Botub! How can I help you automate your business today?', timestamp },
           { role: 'user', text: userMsg, timestamp }
         ];
         const sessionRef = await addDoc(collection(db, 'bots', botId!, 'chats'), {

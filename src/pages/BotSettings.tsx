@@ -631,7 +631,7 @@ export default function BotSettings() {
                 <textarea
                   value={greetingMessage}
                   onChange={(e) => setGreetingMessage(e.target.value)}
-                  placeholder="e.g., Hello! How can I help you today?"
+                  placeholder="e.g., Welcome to Botub! How can I help you automate your business today?"
                   className="w-full px-6 py-5 rounded-3xl border border-slate-100 bg-slate-50 focus:bg-white focus:border-indigo-400 font-bold text-slate-900 text-sm min-h-[100px] leading-relaxed"
                 />
               </div>
