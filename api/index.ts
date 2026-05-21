@@ -117,13 +117,13 @@ ${safeText.substring(0, 10000)}
 function roughScrapChat(query: string, knowledgeBase: string, personality: string, greetingMessage: string = '') {
   const lowQuery = query.toLowerCase().trim();
   
-  const isHindi = lowQuery.includes('kaise') || lowQuery.includes('kya') || lowQuery.includes('hai') || lowQuery.includes('batao') || lowQuery.includes('namaste');
+  const isHindi = lowQuery.includes('kaise') || lowQuery.includes('kya') || lowQuery.includes('hai') || lowQuery.includes('batao') || lowQuery.includes('namaste') || lowQuery.includes('karo') || lowQuery.includes('sakte') || lowQuery.includes('bhai') || lowQuery.includes('yaar') || lowQuery.includes('kuch') || lowQuery.includes('hoga');
   
-  // Basic Greeting handling in fallback
-  const greetings = ['hi', 'hello', 'hey', 'hello hi', 'greeting', 'greetings', 'hola', 'hi there'];
+  // 1. Basic Greeting handling in fallback
+  const greetings = ['hi', 'hello', 'hey', 'hello hi', 'greeting', 'greetings', 'hola', 'hi there', 'namaste', 'heyy', 'yo', 'sup', 'salam'];
   if (greetings.includes(lowQuery) || lowQuery.length < 3) {
     if (greetingMessage) return greetingMessage;
-    if (isHindi) return "Namaste! Main aapki kya madad kar sakta hoon?";
+    if (isHindi) return "Namaste! Main aapka business assistant hoon. Main aapki kya madad kar sakta hoon?";
     return "Hello! I'm your business assistant. How can I help you today?";
   }
 
@@ -133,19 +133,101 @@ function roughScrapChat(query: string, knowledgeBase: string, personality: strin
       : "I'm still learning about this business. Please check back in a few minutes!";
   }
 
-  const knowledge = knowledgeBase.toLowerCase();
+  // 2. Tokenize query to find search keywords, removing common stop words
+  const stopWords = new Set([
+    'what', 'is', 'the', 'are', 'do', 'you', 'about', 'for', 'please', 'can', 'tell', 'me', 'how', 'any', 'some', 'there', 'who', 'where', 'when', 'why', 'which', 'whom', 'whose', 'this', 'that', 'these', 'those', 'a', 'an', 'at', 'by', 'of', 'on', 'with', 'to', 'from', 'in', 'out', 'up', 'down', 'and', 'or', 'but',
+    'kya', 'hai', 'kaise', 'batao', 'karo', 'sakte', 'bhai', 'yaar', 'aap', 'ka', 'ki', 'ke', 'ko', 'se', 'tha', 'thi', 'the', 'hai', 'hain', 'mein', 'par', 'aur', 'ya', 'lekin', 'mujhe', 'kuch', 'ek'
+  ]);
   
-  // Basic keyword matcher for fallback
-  if (lowQuery.includes('contact') || lowQuery.includes('phone') || lowQuery.includes('email') || lowQuery.includes('reach')) {
-    const lines = knowledgeBase.split('\n').filter(l => l.includes('@') || l.match(/\d{10}/));
-    if (lines.length > 0) return (isHindi ? "Aap humse yahan contact kar sakte hain:\n" : "You can reach us at:\n") + lines.slice(0, 3).join('\n');
+  const rawWords = lowQuery.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?\n]/g, " ").split(/\s+/);
+  const queryKeywords = rawWords.filter(word => word.length > 2 && !stopWords.has(word));
+
+  // 3. Process knowledge base into paragraphs and sentences
+  const sections = knowledgeBase.split(/\n\n+/).map(s => s.trim()).filter(s => s.length > 5);
+  const rawLines = knowledgeBase.split('\n').map(l => l.trim()).filter(l => l.length > 10);
+  const candidates = Array.from(new Set([...sections, ...rawLines]));
+
+  const scoredCandidates: {text: string, score: number}[] = [];
+
+  for (const candidate of candidates) {
+    const lowCand = candidate.toLowerCase();
+    let score = 0;
+    
+    // Check keyword match
+    for (const keyword of queryKeywords) {
+      if (lowCand.includes(keyword)) {
+        score += 3; // base score for keyword overlap
+        const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+        if (regex.test(lowCand)) {
+          score += 2; // exact word match bonus
+        }
+      }
+    }
+
+    // Special exact phrase match bonus
+    if (queryKeywords.length > 1) {
+      const phrase = queryKeywords.slice(0, 3).join(' ');
+      if (lowCand.includes(phrase)) {
+        score += 5;
+      }
+    }
+
+    if (score > 0) {
+      scoredCandidates.push({ text: candidate, score });
+    }
   }
 
+  // Sort candidates by score descending
+  scoredCandidates.sort((a, b) => b.score - a.score);
+
+  if (scoredCandidates.length > 0 && scoredCandidates[0].score >= 3) {
+    const bestMatch = scoredCandidates[0].text;
+    let responseText = bestMatch;
+
+    // Append second-best match if its score is close
+    if (scoredCandidates.length > 1 && scoredCandidates[1].score >= scoredCandidates[0].score * 0.7) {
+      responseText += '\n\n' + scoredCandidates[1].text;
+    }
+
+    const prefixes = [
+      "Here is the information I found in our records:\n",
+      "According to our business details:\n",
+      "Based on our knowledge base:\n"
+    ];
+    const prefixHindi = [
+      "Humein iski jaankari mili hai:\n\n",
+      "Hamare records ke mutabik:\n\n",
+      "Yahan iski details hain:\n\n"
+    ];
+
+    const chosenPrefix = isHindi 
+      ? prefixHindi[Math.floor(Math.random() * prefixHindi.length)]
+      : prefixes[Math.floor(Math.random() * prefixes.length)];
+
+    return `${chosenPrefix}\n${responseText}`;
+  }
+
+  // 4. Fallback search options for specific intents (Contact, Services)
+  if (lowQuery.includes('contact') || lowQuery.includes('phone') || lowQuery.includes('email') || lowQuery.includes('reach') || lowQuery.includes('number') || lowQuery.includes('address') || lowQuery.includes('pata') || lowQuery.includes('location')) {
+    const contactLines = rawLines.filter(l => l.includes('@') || l.match(/\d{9,12}/) || l.toLowerCase().includes('location') || l.toLowerCase().includes('address') || l.toLowerCase().includes('email') || l.toLowerCase().includes('phone'));
+    if (contactLines.length > 0) {
+      return (isHindi ? "Aap humse yahan contact kar sakte hain:\n\n" : "You can reach us at:\n\n") + contactLines.slice(0, 4).join('\n');
+    }
+  }
+
+  if (lowQuery.includes('service') || lowQuery.includes('product') || lowQuery.includes('kaam') || lowQuery.includes('work') || lowQuery.includes('features') || lowQuery.includes('what do') || lowQuery.includes('kis liye') || lowQuery.includes('kya karte')) {
+    const serviceLines = rawLines.filter(l => l.toLowerCase().includes('service') || l.toLowerCase().includes('product') || l.toLowerCase().includes('feature') || l.toLowerCase().includes('offer') || l.toLowerCase().includes('automate') || l.toLowerCase().includes('provide'));
+    if (serviceLines.length > 0) {
+      return (isHindi ? "Hum ye services offer karte hain:\n\n" : "Here are the services we provide:\n\n") + serviceLines.slice(0, 3).join('\n');
+    }
+  }
+
+  // 5. Default Response
   if (isHindi) {
-    return "Maaf kijiye, mujhe is baare mein zyada jaankari nahi hai. Aap contact info try kar sakte hain ya fir website check karein.";
+    return "Maaf kijiye, mujhe is baare mein zyada jaankari nahi hai. Kripya humare services ya contact details ke baare mein poochein.";
   }
 
-  return "I'm sorry, I couldn't find a specific answer for that in my current knowledge. Please feel free to ask about our services or contact details.";
+  return "I'm sorry, I couldn't find a specific answer for that in my current knowledge base. Please feel free to ask about our services, pricing, or contact details.";
 }
 
 // --- GEMINI AI ENGINE ---
