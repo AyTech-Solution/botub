@@ -165,6 +165,24 @@ export default function BotCreation() {
   const [selectedBreakdownTab, setSelectedBreakdownTab] = useState(0);
   const [editingBreakdownIndex, setEditingBreakdownIndex] = useState<number | null>(null);
   const [editingBreakdownValue, setEditingBreakdownValue] = useState('');
+
+  // Specific sections & URLs inclusion states
+  const [extractedSections, setExtractedSections] = useState<{
+    id: string;
+    title: string;
+    content: string;
+    icon: string;
+    sourceUrl: string;
+    selected: boolean;
+  }[]>([]);
+  
+  const [discoveredPageUrls, setDiscoveredPageUrls] = useState<{
+    url: string;
+    title: string;
+    selected: boolean;
+    loading: boolean;
+    crawled: boolean;
+  }[]>([]);
   
   // New Premium Features State
   const [personality, setPersonality] = useState('professional');
@@ -242,6 +260,89 @@ export default function BotCreation() {
     }
   };
 
+  const updateDetailsFromSections = (sectionsList: { id: string; title: string; content: string; icon: string; sourceUrl: string; selected: boolean }[]) => {
+    const includedContent = sectionsList
+      .filter(s => s.selected)
+      .map(s => `### ${s.title}\n${s.content}`)
+      .join('\n\n');
+    setDetails(includedContent);
+  };
+
+  const toggleSectionSelection = (id: string) => {
+    const updated = extractedSections.map(s => 
+      s.id === id ? { ...s, selected: !s.selected } : s
+    );
+    setExtractedSections(updated);
+    updateDetailsFromSections(updated);
+  };
+
+  const updateSectionContent = (id: string, newContent: string) => {
+    const updated = extractedSections.map(s => 
+      s.id === id ? { ...s, content: newContent } : s
+    );
+    setExtractedSections(updated);
+    updateDetailsFromSections(updated);
+  };
+
+  const handleCrawlUrl = async (url: string) => {
+    setDiscoveredPageUrls(prev => {
+      const exists = prev.find(p => p.url === url);
+      if (exists) {
+        return prev.map(p => p.url === url ? { ...p, loading: true } : p);
+      } else {
+        return [...prev, { url, title: url, selected: true, loading: true, crawled: false }];
+      }
+    });
+
+    try {
+      const data = await analyzeWebsite(url);
+      const { knowledgeBase } = data.result;
+      const parsed = parseExtractedKnowledge(knowledgeBase);
+      const newSections = parsed.map((sect, i) => ({
+        id: `sect-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 5)}`,
+        title: sect.title,
+        content: sect.content,
+        icon: sect.icon,
+        sourceUrl: url,
+        selected: true
+      }));
+
+      const nextSections = [...extractedSections.filter(s => s.sourceUrl !== url), ...newSections];
+      setExtractedSections(nextSections);
+      updateDetailsFromSections(nextSections);
+
+      setDiscoveredPageUrls(prev => 
+        prev.map(p => p.url === url ? { ...p, loading: false, crawled: true, selected: true } : p)
+      );
+      toast.success(`Successfully scanned and integrated page: ${url}`);
+    } catch (err: any) {
+      console.error(`Failed to crawl ${url}:`, err);
+      toast.error(`Failed to crawl ${url}: ${err.message || err}`);
+      setDiscoveredPageUrls(prev => 
+        prev.map(p => p.url === url ? { ...p, loading: false, selected: false } : p)
+      );
+    }
+  };
+
+  const toggleUrlSelection = async (url: string) => {
+    const target = discoveredPageUrls.find(p => p.url === url);
+    if (!target) return;
+
+    if (!target.crawled) {
+      await handleCrawlUrl(url);
+    } else {
+      const newSelectedState = !target.selected;
+      setDiscoveredPageUrls(prev => 
+        prev.map(p => p.url === url ? { ...p, selected: newSelectedState } : p)
+      );
+      const updated = extractedSections.map(s => 
+        s.sourceUrl === url ? { ...s, selected: newSelectedState } : s
+      );
+      setExtractedSections(updated);
+      updateDetailsFromSections(updated);
+    }
+  };
+
   const handleAnalyze = async () => {
     if (!websiteUrl) return;
     
@@ -254,19 +355,36 @@ export default function BotCreation() {
       const { knowledgeBase, missingTips, businessName } = data.result;
       
       setAnalysisResult(knowledgeBase);
+      
+      const parsed = parseExtractedKnowledge(knowledgeBase);
+      const newSections = parsed.map((sect, i) => ({
+        id: `sect-${Date.now()}-${i}`,
+        title: sect.title,
+        content: sect.content,
+        icon: sect.icon,
+        sourceUrl: websiteUrl,
+        selected: true
+      }));
+      setExtractedSections(newSections);
+      updateDetailsFromSections(newSections);
+
       if (data.suggestions) {
         setScannedSuggestions(data.suggestions);
+        const filteredUrls = data.suggestions
+          .filter((s: any) => s.url && !s.isTip)
+          .map((s: any) => ({
+            url: s.url,
+            title: s.text,
+            selected: false,
+            loading: false,
+            crawled: false
+          }));
+        setDiscoveredPageUrls(filteredUrls);
       }
       
       if (businessName && !botName) {
         setBotName(businessName);
       }
-
-      setDetails(prev => {
-        const base = prev.trim();
-        const header = `--- SOURCE: ${websiteUrl.toUpperCase()} ---`;
-        return base ? `${base}\n\n${header}\n${knowledgeBase}` : `${header}\n${knowledgeBase}`;
-      });
 
       if (missingTips && missingTips.length > 0) {
          setScannedSuggestions(prev => [
@@ -713,10 +831,11 @@ export default function BotCreation() {
                       <div className="mt-8 space-y-6">
                         {/* Summary & Score banner */}
                         {(() => {
-                          const extractedSections = parseExtractedKnowledge(analysisResult);
+                          const totalSectionsCount = extractedSections.length;
+                          const selectedSectionsCount = extractedSections.filter(s => s.selected).length;
                           const missingTipsList = scannedSuggestions.filter(s => s.isTip);
-                          const totalPoints = extractedSections.length + missingTipsList.length;
-                          const scoreValue = totalPoints > 0 ? Math.max(10, Math.min(100, Math.round((extractedSections.length / totalPoints) * 100))) : 100;
+                          const totalPoints = totalSectionsCount + missingTipsList.length;
+                          const scoreValue = totalPoints > 0 ? Math.max(10, Math.min(100, Math.round((selectedSectionsCount / totalPoints) * 100))) : 100;
                           
                           return (
                             <div className="bg-slate-900 text-white rounded-[2rem] p-6 shadow-xl relative overflow-hidden">
@@ -729,7 +848,7 @@ export default function BotCreation() {
                                   </div>
                                   <h3 className="text-xl font-black font-sans leading-tight">AI Website Extraction Report</h3>
                                   <p className="text-xs text-slate-400 font-medium max-w-md">
-                                    We scanned your website and successfully structured the primary business knowledge. Fill in any missing gaps to ensure maximum accuracy in chatbot responses.
+                                    We scanned your website and structured the business knowledge. You can choose specific sections and crawl other pages to expand and refine your training base.
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-4 shrink-0 bg-white/5 border border-white/10 px-6 py-4 rounded-2xl">
@@ -737,7 +856,7 @@ export default function BotCreation() {
                                     {/* Score Indicator */}
                                     <svg className="w-16 h-16 transform -rotate-90">
                                       <circle cx="32" cy="32" r="28" className="text-slate-800" strokeWidth="4" fill="transparent" stroke="currentColor" />
-                                      <circle cx="32" cy="32" r="28" className="text-indigo-505 text-indigo-500" strokeWidth="4" fill="transparent" strokeDasharray={176} strokeDashoffset={176 - (176 * scoreValue) / 100} strokeLinecap="round" stroke="currentColor" />
+                                      <circle cx="32" cy="32" r="28" className="text-indigo-500" strokeWidth="4" fill="transparent" strokeDasharray={176} strokeDashoffset={176 - (176 * scoreValue) / 100} strokeLinecap="round" stroke="currentColor" />
                                     </svg>
                                     <span className="absolute text-sm font-black font-mono">{scoreValue}%</span>
                                   </div>
@@ -754,82 +873,102 @@ export default function BotCreation() {
                         })()}
 
                         {/* Two Column Layout: Extracted Data breakdown and Actionable tips */}
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 font-sans">
                           {/* Left Panel: Detailed Breakdown of Extracted Info (7 Columns) */}
                           <div className="lg:col-span-7 bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-4">
                             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                               <div>
-                                <h4 className="font-extrabold text-slate-900 text-sm leading-tight font-sans">Structured Knowledge Categories</h4>
-                                <p className="text-[10px] text-slate-400 font-medium">Verify information parsed from your digital presence</p>
+                                <h4 className="font-extrabold text-slate-900 text-sm leading-tight">Structured Knowledge Categories</h4>
+                                <p className="text-[10px] text-slate-400 font-medium">Toggle checkboxes to select specific sections to include in the training base</p>
                               </div>
-                              <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100 uppercase tracking-widest font-mono">
-                                {parseExtractedKnowledge(analysisResult).length} Sections Identified
+                              <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100 uppercase tracking-widest font-mono shrink-0">
+                                {extractedSections.filter(s => s.selected).length}/{extractedSections.length} Sections Active
                               </span>
                             </div>
 
-                            {(() => {
-                              const sections = parseExtractedKnowledge(analysisResult);
-                              if (sections.length === 0) {
-                                return (
-                                  <div className="p-8 text-center text-slate-400 text-xs">
-                                    No sections identified. Try manually typing business knowledge below.
-                                  </div>
-                                );
-                              }
-
-                              const currentActiveTab = selectedBreakdownTab >= sections.length ? 0 : selectedBreakdownTab;
-                              const activeSection = sections[currentActiveTab];
-
-                              return (
-                                <div className="space-y-4">
-                                  {/* Section Quick Tabs */}
-                                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-                                    {sections.map((sect, sIdx) => {
-                                      const isActive = currentActiveTab === sIdx;
-                                      return (
+                            {extractedSections.length === 0 ? (
+                              <div className="p-8 text-center text-slate-400 text-xs">
+                                No sections selected or identified. Try scanning or enter manually below.
+                              </div>
+                            ) : (
+                              <div className="space-y-4">
+                                {/* Section Tabs with checkbox */}
+                                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+                                  {extractedSections.map((sect, sIdx) => {
+                                    const isActive = (selectedBreakdownTab >= extractedSections.length ? 0 : selectedBreakdownTab) === sIdx;
+                                    return (
+                                      <div
+                                        key={sect.id}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shrink-0 ${
+                                          isActive 
+                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-100' 
+                                            : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-100'
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={sect.selected}
+                                          onChange={() => toggleSectionSelection(sect.id)}
+                                          className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-550 cursor-pointer"
+                                        />
                                         <button
-                                          key={sIdx}
                                           type="button"
                                           onClick={() => {
                                             setSelectedBreakdownTab(sIdx);
                                             setEditingBreakdownIndex(null);
                                           }}
-                                          className={`px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 border ${
-                                            isActive 
-                                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-100' 
-                                              : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-100'
-                                          }`}
+                                          className="flex items-center gap-1 text-left"
                                         >
                                           <span>{sect.icon}</span>
                                           <span className="capitalize">{sect.title}</span>
                                         </button>
-                                      );
-                                    })}
-                                  </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
 
-                                  {/* Active Section Panel */}
-                                  {activeSection && (
-                                    <div className="bg-slate-50/50 rounded-2xl p-5 border border-slate-100/50 space-y-3 relative group">
+                                {/* Active Section Panel */}
+                                {(() => {
+                                  const activeTabIdx = selectedBreakdownTab >= extractedSections.length ? 0 : selectedBreakdownTab;
+                                  const activeSect = extractedSections[activeTabIdx];
+                                  if (!activeSect) return null;
+
+                                  return (
+                                    <div className={`bg-slate-50/50 rounded-2xl p-5 border transition-all space-y-3 relative group ${
+                                      activeSect.selected ? 'border-indigo-100 bg-slate-50/50' : 'border-dashed border-red-200 bg-red-50/5'
+                                    }`}>
                                       <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
-                                          <span className="text-xl">{activeSection.icon}</span>
-                                          <span className="font-extrabold text-slate-900 text-xs capitalize">{activeSection.title}</span>
+                                          <span className="text-xl">{activeSect.icon}</span>
+                                          <span className="font-extrabold text-slate-900 text-xs capitalize">{activeSect.title}</span>
+                                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${
+                                            activeSect.selected 
+                                              ? 'bg-indigo-50 text-indigo-600' 
+                                              : 'bg-red-50 text-red-500 border border-red-100'
+                                          }`}>
+                                            {activeSect.selected ? 'Included' : 'Excluded'}
+                                          </span>
                                         </div>
-                                        {editingBreakdownIndex !== currentActiveTab ? (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setEditingBreakdownIndex(currentActiveTab);
-                                              setEditingBreakdownValue(activeSection.content);
-                                            }}
-                                            className="text-[10px] font-black text-indigo-600 hover:text-indigo-700 uppercase tracking-wider flex items-center gap-1"
-                                          >
-                                            Modify
-                                          </button>
-                                        ) : null}
+
+                                        <div className="flex items-center gap-2">
+                                          {editingBreakdownIndex !== activeTabIdx ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setEditingBreakdownIndex(activeTabIdx);
+                                                setEditingBreakdownValue(activeSect.content);
+                                              }}
+                                              className="text-[10px] font-black text-indigo-600 hover:text-indigo-700 uppercase tracking-wider flex items-center gap-1"
+                                            >
+                                              Modify
+                                            </button>
+                                          ) : null}
+                                        </div>
                                       </div>
 
-                                      {editingBreakdownIndex === currentActiveTab ? (
+                                      <p className="text-[9px] text-slate-400 font-medium font-sans">Source URL: <span className="font-mono">{activeSect.sourceUrl}</span></p>
+
+                                      {editingBreakdownIndex === activeTabIdx ? (
                                         <div className="space-y-3">
                                           <textarea
                                             rows={6}
@@ -848,47 +987,88 @@ export default function BotCreation() {
                                             <button
                                               type="button"
                                               onClick={() => {
-                                                const sectionsCopy = parseExtractedKnowledge(details);
-                                                if (sectionsCopy[currentActiveTab]) {
-                                                  sectionsCopy[currentActiveTab].content = editingBreakdownValue;
-                                                  const reconstructed = sectionsCopy.map(s => `### ${s.title}\n${s.content}`).join('\n\n');
-                                                  setDetails(reconstructed);
-                                                  setAnalysisResult(reconstructed);
-                                                  setEditingBreakdownIndex(null);
-                                                  toast.success("Section records updated!");
-                                                }
+                                                updateSectionContent(activeSect.id, editingBreakdownValue);
+                                                setEditingBreakdownIndex(null);
+                                                toast.success("Section content updated successfully!");
                                               }}
                                               className="px-3 py-1.5 text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
                                             >
-                                              Save
+                                              Save Change
                                             </button>
                                           </div>
                                         </div>
                                       ) : (
-                                        <div className="text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-wrap max-h-52 overflow-y-auto">
-                                          {activeSection.content.trim()}
+                                        <div className={`text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-wrap max-h-52 overflow-y-auto ${
+                                          !activeSect.selected ? 'text-slate-400/70 line-through' : ''
+                                        }`}>
+                                          {activeSect.content.trim()}
                                         </div>
                                       )}
                                     </div>
-                                  )}
-                                </div>
-                              );
-                            })()}
+                                  );
+                                })()}
+                              </div>
+                            )}
                           </div>
 
-                          {/* Right Panel: Actionable Gap Checklist (5 Columns) */}
+                          {/* Right Panel: Sitemap selection & Missing tips (5 Columns) */}
                           <div className="lg:col-span-5 bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-4">
+                            {/* Sitemap section */}
+                            {discoveredPageUrls.length > 0 && (
+                              <div className="pb-4 border-b border-dashed border-slate-100 space-y-3">
+                                <div>
+                                  <h4 className="text-slate-900 text-xs font-extrabold uppercase tracking-widest font-mono">🌐 Discover Page URLs</h4>
+                                  <p className="text-[9px] text-slate-400 font-mono">Select specific pages to automatically scan and import their sections into the bot's training data.</p>
+                                </div>
+                                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                  {discoveredPageUrls.map((p) => (
+                                    <div 
+                                      key={p.url} 
+                                      onClick={() => !p.loading && toggleUrlSelection(p.url)}
+                                      className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 bg-slate-50/20 hover:bg-slate-50/50 transition-colors cursor-pointer"
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <input
+                                          type="checkbox"
+                                          checked={p.selected}
+                                          disabled={p.loading}
+                                          onChange={(e) => {
+                                            e.stopPropagation();
+                                            toggleUrlSelection(p.url);
+                                          }}
+                                          className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 shrink-0"
+                                        />
+                                        <div className="min-w-0">
+                                          <p className="text-xs font-bold text-slate-700 truncate capitalize">{p.title}</p>
+                                          <p className="text-[9px] text-slate-400 font-mono truncate">{p.url}</p>
+                                        </div>
+                                      </div>
+
+                                      <div className="shrink-0 pl-1.5">
+                                        {p.loading ? (
+                                          <Loader2 className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
+                                        ) : p.crawled ? (
+                                          <span className="text-[8px] font-black uppercase text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100/50">Crawled</span>
+                                        ) : (
+                                          <span className="text-[8px] font-black uppercase text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">Scan page</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
                             <div>
-                              <h4 className="font-extrabold text-slate-900 text-sm leading-tight font-sans">⚠️ Potential Missing Data Points</h4>
-                              <p className="text-[10px] text-slate-400 font-medium font-mono uppercase tracking-wider">Under-optimized information gaps in AI's context</p>
+                              <h4 className="font-extrabold text-slate-900 text-xs leading-tight uppercase tracking-widest font-mono">⚠️ Potential Missing Data Points</h4>
+                              <p className="text-[10px] text-slate-400 font-medium">Under-optimized information gaps in AI's context</p>
                             </div>
 
                             {/* List of Tips */}
                             {(() => {
                               const tips = scannedSuggestions.filter(s => s.isTip);
-                              const otherSuggestions = scannedSuggestions.filter(s => !s.isTip);
                               
-                              if (tips.length === 0 && otherSuggestions.length === 0) {
+                              if (tips.length === 0) {
                                 return (
                                   <div className="p-6 bg-emerald-50/50 border border-emerald-100/40 rounded-2xl text-center space-y-2">
                                     <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-lg">🎉</div>
@@ -899,12 +1079,11 @@ export default function BotCreation() {
                               }
 
                               return (
-                                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                                <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
                                   {tips.map((tip, idx) => {
                                     const rawTitle = tip.text.replace('missing', '').replace('not found', '').trim();
                                     const displayTitle = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1);
                                     
-                                    // Make a custom explanation based on keyword to help user see why it is important
                                     let whyItMatters = "Add this details to let the chatbot answer specific customers perfectly.";
                                     const tL = displayTitle.toLowerCase();
                                     if (tL.includes('pricing') || tL.includes('cost') || tL.includes('plan')) {
@@ -938,9 +1117,9 @@ export default function BotCreation() {
                                               setTipToFix(tip.text);
                                               setTipValue('');
                                             }}
-                                            className="w-full py-1.5 bg-amber-500 hover:bg-amber-650 hover:bg-amber-600 text-white font-extrabold text-[10px] rounded-lg tracking-widest uppercase transition-colors"
+                                            className="w-full py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-[10px] rounded-lg tracking-widest uppercase transition-colors"
                                           >
-                                            🔧 Fill Missing Data
+                                            Fill Missing Data
                                           </button>
                                         ) : (
                                           <div className="bg-white p-3 rounded-xl border border-amber-100 shadow-sm space-y-2">
@@ -990,22 +1169,6 @@ export default function BotCreation() {
                                       </div>
                                     );
                                   })}
-
-                                  {otherSuggestions.map((s, idx) => (
-                                    <button
-                                      key={`other-${idx}`}
-                                      type="button"
-                                      onClick={() => s.url && setWebsiteUrl(s.url)}
-                                      disabled={!s.url}
-                                      className="w-full p-3 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors flex items-center justify-between text-left"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-4 h-4 bg-emerald-50 text-emerald-600 rounded flex items-center justify-center text-[10px]">✓</div>
-                                        <span className="text-xs font-bold text-slate-700">{s.text}</span>
-                                      </div>
-                                      {s.url && <span className="text-[9px] font-black text-indigo-600 uppercase">Load URL</span>}
-                                    </button>
-                                  ))}
                                 </div>
                               );
                             })()}
