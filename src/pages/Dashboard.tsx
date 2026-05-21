@@ -46,7 +46,10 @@ const ConfigAlert = memo(() => {
   if (!config) return null;
 
   const missingKeys = [];
-  // Backend no longer uses Firebase Admin directly
+  if (!config.ai) {
+    missingKeys.push("GEMINI_API_KEY");
+  }
+
   if (missingKeys.length === 0) return null;
 
   return (
@@ -63,10 +66,10 @@ const ConfigAlert = memo(() => {
         <AlertTriangle className="w-7 h-7 text-white" />
       </div>
       <div className="flex-1">
-        <h4 className="text-lg font-black text-brand-dark uppercase tracking-tight">Database Credentials Required</h4>
+        <h4 className="text-lg font-black text-brand-dark uppercase tracking-tight">Gemini AI Key Required</h4>
         <p className="text-sm text-gray-500 mt-1 font-medium max-w-2xl leading-relaxed">
-          The app is missing <span className="text-amber-600 font-bold underline">{missingKeys.join(' and ')}</span>. 
-          The database connection is required for saving bots and chat logs.
+          The app is missing your <span className="text-amber-600 font-bold underline">GEMINI_API_KEY</span>. 
+          Please add it under **Settings &rarr; Secrets** in the coding environment so your custom bots can use modern AI reasoning instead of deterministic fallback.
         </p>
       </div>
       <div className="flex items-center space-x-3 w-full md:w-auto">
@@ -74,7 +77,7 @@ const ConfigAlert = memo(() => {
           href="https://ai.studio/build/settings" 
           target="_blank" 
           rel="noopener noreferrer"
-          className="flex-1 md:flex-none px-6 py-4 bg-brand-dark text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl active:scale-95 text-center"
+          className="flex-1 md:flex-none px-6 py-4 bg-brand-dark text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl active:scale-95 text-center whitespace-nowrap"
         >
           Open Settings
         </a>

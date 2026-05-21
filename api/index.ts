@@ -156,7 +156,9 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
     .trim();
 
   const client = getGeminiClient();
-  if (!client) return roughScrapChat(query, cleanKB, personality, greetingMessage);
+  if (!client) {
+    return `⚠️ **GEMINI CONFIGURATION ERROR:** The \`GEMINI_API_KEY\` is not set in your server settings. To use the AI capabilities, please add it in the settings. Fallback answer: ${roughScrapChat(query, cleanKB, personality, greetingMessage)}`;
+  }
 
   try {
     const hasKnowledge = cleanKB.length > 20;
@@ -165,7 +167,7 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
     const historyContext = chatHistory.slice(-6).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content || m.text}`).join('\n');
 
     const response = await client.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: [
         {
           role: 'user',
@@ -207,7 +209,7 @@ BRAND RULES:
     if (err.message?.includes("503") || err.message?.includes("Service Unavailable") || err.message?.includes("high demand")) {
       return "⚠️ **SYSTEM BUSY:** Gemini is currently experiencing high demand. Please try again in a few seconds.";
     }
-    return roughScrapChat(query, cleanKB, personality);
+    return `⚠️ **GEMINI CHAT ERROR:** ${err.message || 'Error occurred during generation'}\n\n*Fallback response:* ${roughScrapChat(query, cleanKB, personality, greetingMessage)}`;
   }
 }
 
@@ -217,9 +219,9 @@ async function geminiAnalyze(text: string, title: string, description: string) {
   if (!client || !text) return fallback;
   
   try {
-    // Using gemini-1.5-flash for analysis as it's typically more stable for bulk data processing
+    // Using gemini-2.5-flash for analysis
     const response = await client.models.generateContent({ 
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: `You are an Expert Business Consultant and Data Architect. Analyze the raw text and structure it into a perfect Knowledge Base.
 
 TASK:
