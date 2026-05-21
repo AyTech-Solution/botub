@@ -172,7 +172,8 @@ export default function WidgetPage() {
         bot.personality || 'friendly', 
         bot.customInstructions || '', 
         bot.primaryLanguage || 'auto',
-        messages
+        messages,
+        bot.greetingMessage || ''
       );
       
       const botMessage = {

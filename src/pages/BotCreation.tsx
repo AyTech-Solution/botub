@@ -117,6 +117,7 @@ export default function BotCreation() {
   const [responseSpeed, setResponseSpeed] = useState('natural');
   const [isResponseSpeedDropdownOpen, setIsResponseSpeedDropdownOpen] = useState(false);
   const [customInstructions, setCustomInstructions] = useState('');
+  const [greetingMessage, setGreetingMessage] = useState('');
   const [primaryLanguage, setPrimaryLanguage] = useState('auto');
   const [isLanguageDropdownOpen, setIsLanguageDropdownOpen] = useState(false);
   
@@ -309,7 +310,7 @@ export default function BotCreation() {
         voiceOutputEnabled: false,
         voiceId: 'Kore',
         primaryLanguage: primaryLanguage,
-        greetingMessage: `Hello! I am ${botName}, your ${companyName} assistant. How can I help you today?`,
+        greetingMessage: greetingMessage.trim() || `Hello! I am ${botName}, your ${companyName} assistant. How can I help you today?`,
         customInstructions: initialInstructions,
         integrationParams: {
           webhookUrl: ''
@@ -879,6 +880,18 @@ export default function BotCreation() {
                           )}
                         </AnimatePresence>
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Greeting Message / "Hi/Hello" Reply (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder={`e.g., Hello! I am ${botName || 'Assistant'}. How can I assist you today?`}
+                    value={greetingMessage}
+                    onChange={(e) => setGreetingMessage(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm mb-4"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-[-10px] mb-4">If set, the bot will use this message to greet users first and reply when they say "Hi" or "Hello". Leave it blank to use the default greeting.</p>
                 </div>
 
                 <div>

@@ -64,7 +64,8 @@ export async function generateBotResponse(
   personality: string = 'friendly', 
   customInstructions: string = '', 
   primaryLanguage: string = 'auto',
-  chatHistory: any[] = []
+  chatHistory: any[] = [],
+  greetingMessage: string = ''
 ) {
   try {
     const response = await fetch('/api/chat', {
@@ -76,7 +77,8 @@ export async function generateBotResponse(
         personality,
         customInstructions,
         primaryLanguage,
-        chatHistory
+        chatHistory,
+        greetingMessage
       })
     });
 

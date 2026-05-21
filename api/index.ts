@@ -102,11 +102,19 @@ ${safeText.substring(0, 10000)}
   };
 }
 
-function roughScrapChat(query: string, knowledgeBase: string, personality: string) {
-  const lowQuery = query.toLowerCase();
+function roughScrapChat(query: string, knowledgeBase: string, personality: string, greetingMessage: string = '') {
+  const lowQuery = query.toLowerCase().trim();
   
-  const isHindi = lowQuery.includes('kaise') || lowQuery.includes('kya') || lowQuery.includes('hai') || lowQuery.includes('batao');
+  const isHindi = lowQuery.includes('kaise') || lowQuery.includes('kya') || lowQuery.includes('hai') || lowQuery.includes('batao') || lowQuery.includes('namaste');
   
+  // Basic Greeting handling in fallback
+  const greetings = ['hi', 'hello', 'hey', 'hello hi', 'greeting', 'greetings', 'hola', 'hi there'];
+  if (greetings.includes(lowQuery) || lowQuery.length < 3) {
+    if (greetingMessage) return greetingMessage;
+    if (isHindi) return "Namaste! Main aapki kya madad kar sakta hoon?";
+    return "Hello! I'm your business assistant. How can I help you today?";
+  }
+
   if (!knowledgeBase || knowledgeBase.trim().length < 10) {
     return isHindi 
       ? "Main abhi is business ke baare mein seekh raha hoon. Kripya thodi der baad try karein."
@@ -129,13 +137,13 @@ function roughScrapChat(query: string, knowledgeBase: string, personality: strin
 }
 
 // --- GEMINI AI ENGINE ---
-async function geminiChat(query: string, knowledgeBase: string, personality: string, customInstructions: string = '', primaryLanguage: string = 'auto', chatHistory: any[] = []) {
+async function geminiChat(query: string, knowledgeBase: string, personality: string, customInstructions: string = '', primaryLanguage: string = 'auto', chatHistory: any[] = [], greetingMessage: string = '') {
   // Simple cleanup of knowledge base to remove noise
   const cleanKB = (knowledgeBase || '')
     .substring(0, 15000)
     .trim();
 
-  if (!ai) return roughScrapChat(query, cleanKB, personality);
+  if (!ai) return roughScrapChat(query, cleanKB, personality, greetingMessage);
 
   try {
     const hasKnowledge = cleanKB.length > 20;
@@ -144,32 +152,32 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
     const historyContext = chatHistory.slice(-6).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content || m.text}`).join('\n');
 
     const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
+      model: "gemini-3-flash-preview",
       contents: [
         {
           role: 'user',
-          parts: [{ text: `CONTEXT: You are the lead business representative for this company. You have access to the OFFICIAL RECORDS below. Your goal is to answer users perfectly using these records.
-
-OFFICIAL BUSINESS RECORDS:
-${hasKnowledge ? cleanKB : 'No records yet. Just be a friendly greeting bot.'}
-
-STRICT BRAND RULES:
-- TONE: ${personality}
-- VOICE: Natural, human-like, helpful. Do NOT say "according to the records".
-- LANGUAGE: Mirror the user (Hinglish/English/Hindi).
-- IDENTITY: You represent the company as "We/Us".
-- UNKNOWN: If the info isn't in RECORDS, say: "I don't have that specific detail yet, but I can help you with anything else or you can reach us at our contact point."
-- CUSTOM DIRECTIONS: ${customInstructions || 'None'}
-
-CONVERSATION HISTORY:
+          parts: [{ text: `CONVERSATION HISTORY:
 ${historyContext || 'New session'}
 
 USER QUERY: ${query}` }]
         }
       ],
       config: {
-        temperature: 0.7,
-        topP: 0.8,
+        systemInstruction: `You are the lead business representative. Your role is to be helpful, professional, and friendly.
+      
+OFFICIAL BUSINESS RECORDS:
+${hasKnowledge ? cleanKB : 'No records yet. Be a friendly greeting bot and tell user you are ready to help once they add some business data.'}
+
+BRAND RULES:
+- TONE: ${personality}
+- VOICE: Natural, conversational, and human-like. Never mention "records", "database", or "AI".
+- LANGUAGE: Mirror the user's language (Hindi, English, or Hinglish).
+- IDENTITY: You ARE the company. Use "We", "Us", "Our".
+- GREETINGS: Always respond naturally to greetings (such as "Hi", "Hello", "Hey", "How are you?"). ${greetingMessage ? `Always answer greetings using this exact greeting message: "${greetingMessage}"` : 'Do NOT use the fallback message for greetings.'}
+- UNKNOWN: If a query asks for specific business info (like pricing, address) that is NOT in the RECORDS, say you don't have that detail yet but offer help with other things or provide contact info if available.
+- CUSTOM BRAIN: ${customInstructions || 'None'}`,
+        temperature: 0.8,
+        topP: 0.9,
         maxOutputTokens: 1000,
       }
     });
@@ -197,7 +205,7 @@ async function geminiAnalyze(text: string, title: string, description: string) {
   try {
     // Using gemini-1.5-flash for analysis as it's typically more stable for bulk data processing
     const response = await ai.models.generateContent({ 
-      model: "gemini-1.5-flash",
+      model: "gemini-3-flash-preview",
       contents: `You are an Expert Business Consultant and Data Architect. Analyze the raw text and structure it into a perfect Knowledge Base.
 
 TASK:
@@ -259,7 +267,7 @@ const apiRouter = express.Router();
 
 apiRouter.get("/health", (req, res) => res.json({ 
   status: "ok", 
-  engine: ai ? "Gemini 1.5 Flash" : "Deterministic SLM",
+  engine: ai ? "Gemini 3 Flash Preview" : "Deterministic SLM",
   ai_ready: !!ai
 }));
 
@@ -346,7 +354,7 @@ apiRouter.post("/analyze-text", async (req, res) => {
 });
 
 apiRouter.post("/chat", async (req, res) => {
-  const { prompt, knowledgeBase, personality, customInstructions, primaryLanguage, chatHistory } = req.body;
+  const { prompt, knowledgeBase, personality, customInstructions, primaryLanguage, chatHistory, greetingMessage } = req.body;
   try {
     const text = await geminiChat(
       prompt || '', 
@@ -354,7 +362,8 @@ apiRouter.post("/chat", async (req, res) => {
       personality || 'professional', 
       customInstructions || '', 
       primaryLanguage || 'auto',
-      chatHistory || []
+      chatHistory || [],
+      greetingMessage || ''
     );
     res.json({ text });
   } catch (err: any) {
