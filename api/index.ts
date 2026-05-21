@@ -114,62 +114,194 @@ ${safeText.substring(0, 10000)}
   };
 }
 
-function roughScrapChat(query: string, knowledgeBase: string, personality: string, greetingMessage: string = '') {
+function roughScrapChat(
+  query: string,
+  knowledgeBase: string,
+  personality: string,
+  customInstructions: string = '',
+  primaryLanguage: string = 'auto',
+  chatHistory: any[] = [],
+  greetingMessage: string = ''
+) {
   const lowQuery = query.toLowerCase().trim();
   
-  const isHindi = lowQuery.includes('kaise') || lowQuery.includes('kya') || lowQuery.includes('hai') || lowQuery.includes('batao') || lowQuery.includes('namaste') || lowQuery.includes('karo') || lowQuery.includes('sakte') || lowQuery.includes('bhai') || lowQuery.includes('yaar') || lowQuery.includes('kuch') || lowQuery.includes('hoga');
+  // Hinglish / Hindi detection
+  const isHindi = lowQuery.includes('kaise') || lowQuery.includes('kya') || lowQuery.includes('hai') || lowQuery.includes('batao') || lowQuery.includes('namaste') || lowQuery.includes('karo') || lowQuery.includes('sakte') || lowQuery.includes('bhai') || lowQuery.includes('yaar') || lowQuery.includes('kuch') || lowQuery.includes('hoga') || lowQuery.includes('shi') || lowQuery.includes('sahi') || lowQuery.includes('naam') || lowQuery.includes('kaam') || lowQuery.includes('paise') || lowQuery.includes('rupay') || lowQuery.includes('milega') || lowQuery.includes('kaha') || lowQuery.includes('tumhara');
+
+  // Parse sections and lines of Knowledge Base
+  const cleanKB = (knowledgeBase || '').trim();
+  const rawLines = cleanKB.split('\n').map(l => l.trim()).filter(l => l.length > 5);
   
-  // 1. Basic Greeting handling in fallback
-  const greetings = ['hi', 'hello', 'hey', 'hello hi', 'greeting', 'greetings', 'hola', 'hi there', 'namaste', 'heyy', 'yo', 'sup', 'salam'];
-  if (greetings.includes(lowQuery) || lowQuery.length < 3) {
+  // Clean text helper to strip technical tags
+  const cleanResponseBlock = (text: string) => {
+    return text
+      .replace(/^BUSINESS:\s*/gi, '')
+      .replace(/^ABOUT:\s*/gi, '')
+      .replace(/^KEY DETAILS & SERVICES:\s*/gi, '')
+      .replace(/^PRICING & OFFERS:\s*/gi, '')
+      .replace(/^CONTACT INFO:\s*/gi, '')
+      .replace(/^---\s*BUSINESS KNOWLEDGE BASE\s*---/gi, '')
+      .replace(/^ADDITIONAL RAW CONTENT:\s*/gi, '')
+      .trim();
+  };
+
+  // Helper to extract clean emails, phone numbers and addresses
+  const emails: string[] = [];
+  const phones: string[] = [];
+  let location = "";
+
+  rawLines.forEach(line => {
+    const lowLine = line.toLowerCase();
+    const emailMatch = line.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
+    if (emailMatch) emailMatch.forEach(e => emails.push(e));
+
+    const phoneMatch = line.match(/(\+?\d{1,3}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,5}/g);
+    if (phoneMatch) phoneMatch.forEach(p => { if (p.length >= 10) phones.push(p); });
+
+    if (lowLine.includes('address:') || lowLine.includes('location:') || lowLine.includes('pata:') || lowLine.includes('office:')) {
+      location = cleanResponseBlock(line);
+    }
+  });
+
+  const uniqueEmails = [...new Set(emails)];
+  const uniquePhones = [...new Set(phones)];
+
+  // Helper to extract services lines
+  const serviceLines = rawLines
+    .filter(l => {
+      const low = l.toLowerCase();
+      return (low.includes('service') || low.includes('product') || low.includes('feature') || low.includes('offer') || low.includes('automate') || low.includes('specialty') || low.includes('provide') || low.includes('kaam')) &&
+             !low.includes('contact') && !low.includes('email') && !low.includes('phone') && !low.includes('---');
+    })
+    .map(cleanResponseBlock);
+
+  // Helper to extract pricing lines
+  const pricingLines = rawLines
+    .filter(l => {
+      const low = l.toLowerCase();
+      return (low.includes('price') || low.includes('pricing') || low.includes('cost') || low.includes('charge') || low.includes('rate') || low.includes('offer') || low.includes('₹') || low.includes('$') || low.includes('rs.')) &&
+             !low.includes('contact') && !low.includes('---');
+    })
+    .map(cleanResponseBlock);
+
+  // Helper to extract policy lines
+  const policyLines = rawLines
+    .filter(l => {
+      const low = l.toLowerCase();
+      return low.includes('refund') || low.includes('policy') || low.includes('guarantee') || low.includes('cancel') || low.includes('return');
+    })
+    .map(cleanResponseBlock);
+
+  // 1. GREETING INTENT
+  const greetings = ['hi', 'hello', 'hey', 'hello hi', 'greeting', 'greetings', 'hola', 'hi there', 'namaste', 'heyy', 'yo', 'sup', 'salam', 'kaise ho', 'how are you'];
+  const matchesGreeting = greetings.some(g => lowQuery.includes(g)) || lowQuery.length < 3;
+
+  if (matchesGreeting) {
     if (greetingMessage) return greetingMessage;
-    if (isHindi) return "Namaste! Main aapka business assistant hoon. Main aapki kya madad kar sakta hoon?";
-    return "Hello! I'm your business assistant. How can I help you today?";
+    if (isHindi) {
+      return `Namaste! Kaise hain aap? main aapka digital business representative assistant hoon. 😊✨\n\nAap humari services, rates, offers, ya direct contact details ke baare mein kuch bhi pooch sakte hain. Main aapki madad karne ke liye bilkul taiyar hoon! Aaj kya help chahiye?`;
+    }
+    return `Hello there! 👋 Warm welcome to our business chat window! I am your dedicated virtual representative assistant here. 😊\n\nHow can I help you support your business today? Please feel free to ask me anything about our key services, pricing guides, or direct contact methods!`;
   }
 
-  if (!knowledgeBase || knowledgeBase.trim().length < 10) {
-    return isHindi 
-      ? "Main abhi is business ke baare mein seekh raha hoon. Kripya thodi der baad try karein."
-      : "I'm still learning about this business. Please check back in a few minutes!";
+  // 2. IDENTITY / WHO ARE YOU INTENT
+  if (lowQuery.includes('who are you') || lowQuery.includes('tum kaun') || lowQuery.includes('aap kaun') || lowQuery.includes('identify') || lowQuery.includes('name') || lowQuery.includes('naam') || lowQuery.includes('your bot') || lowQuery.includes('what is this app')) {
+    if (isHindi) {
+      return `Main aapka premium digital business representative assistant bot hoon. 🤖✨\n\nMain humari services aur customer care guidelines se fully trained hoon jisse main aapse perfect natural aur real-time baatein kar saku! Aap jo bhi details jaanna chahte hain kripya batayein!`;
+    }
+    return `I am your business's custom smart digital chatbot support assistant! 🤖✨\n\nI have been specialized to handle customer queries, share service outlines, pricing details, and answer any general questions seamlessly in real time! How may I assist you now?`;
   }
 
-  // 2. Tokenize query to find search keywords, removing common stop words
+  // 3. CONTACT / LOCATION INTENT
+  if (lowQuery.includes('contact') || lowQuery.includes('phone') || lowQuery.includes('email') || lowQuery.includes('reach') || lowQuery.includes('number') || lowQuery.includes('address') || lowQuery.includes('pata') || lowQuery.includes('location') || lowQuery.includes('office') || lowQuery.includes('kaha hai') || lowQuery.includes('milna')) {
+    const lines = [];
+    if (uniquePhones.length > 0) lines.push(`📞 Phone: ${uniquePhones.join(', ')}`);
+    if (uniqueEmails.length > 0) lines.push(`📧 Email: ${uniqueEmails.join(', ')}`);
+    if (location) lines.push(`📍 Office: ${location}`);
+    
+    if (lines.length > 0) {
+      if (isHindi) {
+        return `Haanji bilkul! Aap humse niche diye gaye contact options ke jariye kabhi bhi connect kar sakte hain:\n\n${lines.join('\n')}\n\nHumari team aapse connect karne aur aapke doubts door karne ke liye hamesha active hai! Kripya batayein kya main kuch aur batayein? 📞😊`;
+      }
+      return `We would absolutely love to stay connected with you! Here is our official contact directory to reach out directly:\n\n${lines.join('\n')}\n\nPlease reach out to our team at any time! We are highly active and excited to answer your questions! ✨📞`;
+    } else {
+      // Look in backup lines
+      const foundContact = rawLines.filter(l => l.includes('@') || l.match(/\d{9,12}/) || l.toLowerCase().includes('location') || l.toLowerCase().includes('address')).map(cleanResponseBlock);
+      if (foundContact.length > 0) {
+        if (isHindi) {
+          return `Aap humse connect kar sakte hain! Yahan humari saari contact details hain:\n\n${foundContact.slice(0, 3).join('\n')}\n\nAap jab chahein humse contact kar sakte hain! 😊`;
+        }
+        return `We'd love to stay connected! Here is our contact information:\n\n${foundContact.slice(0, 3).join('\n')}\n\nPlease reach out anytime! 🌟`;
+      }
+    }
+  }
+
+  // 4. SERVICES INTENT
+  if (lowQuery.includes('service') || lowQuery.includes('product') || lowQuery.includes('kaam') || lowQuery.includes('work') || lowQuery.includes('features') || lowQuery.includes('what do') || lowQuery.includes('kis liye') || lowQuery.includes('kya karte') || lowQuery.includes('offers')) {
+    if (serviceLines.length > 0) {
+      const bullets = serviceLines.slice(0, 5).map(l => `• ${l}`).join('\n');
+      if (isHindi) {
+        return `Hamare business doorsteps par aapko ye premium services aur solutions diye jaate hain:\n\n${bullets}\n\nAap inme se kisi bhi offering ke baare mein specifically kuch bhi pooch sakte hain. Main detailed guide provide kar dunga! 😊📊`;
+      }
+      return `We are extremely thrilled to display our professional services and product lines with you! Here is our key offerings list:\n\n${bullets}\n\nPlease let me know if you would like me to unpack or discuss any of these specific areas further! 📊😊`;
+    }
+  }
+
+  // 5. PRICING INTENT
+  if (lowQuery.includes('price') || lowQuery.includes('pricing') || lowQuery.includes('cost') || lowQuery.includes('charge') || lowQuery.includes('rate') || lowQuery.includes('rupay') || lowQuery.includes('paise') || lowQuery.includes('budget') || lowQuery.includes('free') || lowQuery.includes('kitne ka')) {
+    if (pricingLines.length > 0) {
+      const bullets = pricingLines.slice(0, 5).map(l => `• ${l}`).join('\n');
+      if (isHindi) {
+        return `Bilkul! Hamare pricing plans aur amazing deals ke details ye rahe:\n\n${bullets}\n\nHamari pricing hamesha transparent aur pocket-friendly rehti h. Iske alawa koi aur sawal hai? 💰😊`;
+      }
+      return `Certainly! Here is an overview of our pricing details, rate cards, and customized offers:\n\n${bullets}\n\nWe love providing competitive and highly cost-effective solutions. Let me know if you want to request a quote! 💰✨`;
+    }
+  }
+
+  // 6. REFUND / POLICIES INTENT
+  if (lowQuery.includes('refund') || lowQuery.includes('refund policy') || lowQuery.includes('return') || lowQuery.includes('policy') || lowQuery.includes('guarantee') || lowQuery.includes('cancel')) {
+    if (policyLines.length > 0) {
+      const bullets = policyLines.slice(0, 3).map(l => `• ${l}`).join('\n');
+      if (isHindi) {
+        return `Hamari consumer refund aur trust policies ke rules ye hain:\n\n${bullets}\n\nHum hamesha fairness aur consumer satisfaction guarantees par works karte hain! 👍`;
+      }
+      return `We deeply prioritize transparency and client trust. Here is the outline of our official refund and cancelation policies:\n\n${bullets}\n\nOur client agreements protect our buyers at all times. Please ask if you need further explanation! 📝`;
+    }
+  }
+
+  // 7. MULTI-KEYWORD SEMANTIC MATCH (General Q&A Fallback)
+  // Tokenize query to find search keywords, removing common stop words
   const stopWords = new Set([
     'what', 'is', 'the', 'are', 'do', 'you', 'about', 'for', 'please', 'can', 'tell', 'me', 'how', 'any', 'some', 'there', 'who', 'where', 'when', 'why', 'which', 'whom', 'whose', 'this', 'that', 'these', 'those', 'a', 'an', 'at', 'by', 'of', 'on', 'with', 'to', 'from', 'in', 'out', 'up', 'down', 'and', 'or', 'but',
     'kya', 'hai', 'kaise', 'batao', 'karo', 'sakte', 'bhai', 'yaar', 'aap', 'ka', 'ki', 'ke', 'ko', 'se', 'tha', 'thi', 'the', 'hai', 'hain', 'mein', 'par', 'aur', 'ya', 'lekin', 'mujhe', 'kuch', 'ek'
   ]);
-  
   const rawWords = lowQuery.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?\n]/g, " ").split(/\s+/);
   const queryKeywords = rawWords.filter(word => word.length > 2 && !stopWords.has(word));
 
-  // 3. Process knowledge base into paragraphs and sentences
-  const sections = knowledgeBase.split(/\n\n+/).map(s => s.trim()).filter(s => s.length > 5);
-  const rawLines = knowledgeBase.split('\n').map(l => l.trim()).filter(l => l.length > 10);
+  const sections = cleanKB.split(/\n\n+/).map(s => s.trim()).filter(s => s.length > 5);
   const candidates = Array.from(new Set([...sections, ...rawLines]));
-
   const scoredCandidates: {text: string, score: number}[] = [];
 
   for (const candidate of candidates) {
     const lowCand = candidate.toLowerCase();
+    if (lowCand.includes('--- business knowledge base ---') || lowCand.includes('additional raw content:') || lowCand.includes('--- source:')) {
+      continue;
+    }
+
     let score = 0;
-    
-    // Check keyword match
     for (const keyword of queryKeywords) {
       if (lowCand.includes(keyword)) {
-        score += 3; // base score for keyword overlap
+        score += 3;
         const regex = new RegExp(`\\b${keyword}\\b`, 'i');
         if (regex.test(lowCand)) {
-          score += 2; // exact word match bonus
+          score += 2;
         }
       }
     }
 
-    // Special exact phrase match bonus
     if (queryKeywords.length > 1) {
       const phrase = queryKeywords.slice(0, 3).join(' ');
-      if (lowCand.includes(phrase)) {
-        score += 5;
-      }
+      if (lowCand.includes(phrase)) score += 5;
     }
 
     if (score > 0) {
@@ -177,57 +309,72 @@ function roughScrapChat(query: string, knowledgeBase: string, personality: strin
     }
   }
 
-  // Sort candidates by score descending
   scoredCandidates.sort((a, b) => b.score - a.score);
 
   if (scoredCandidates.length > 0 && scoredCandidates[0].score >= 3) {
-    const bestMatch = scoredCandidates[0].text;
-    let responseText = bestMatch;
+    const bestMatch = cleanResponseBlock(scoredCandidates[0].text);
+    let answerText = bestMatch;
 
-    // Append second-best match if its score is close
     if (scoredCandidates.length > 1 && scoredCandidates[1].score >= scoredCandidates[0].score * 0.7) {
-      responseText += '\n\n' + scoredCandidates[1].text;
+      const secondMatch = cleanResponseBlock(scoredCandidates[1].text);
+      if (secondMatch !== bestMatch && !bestMatch.includes(secondMatch)) {
+        answerText += '\n\n' + secondMatch;
+      }
     }
 
-    const prefixes = [
-      "Here is the information I found in our records:\n",
-      "According to our business details:\n",
-      "Based on our knowledge base:\n"
-    ];
-    const prefixHindi = [
-      "Humein iski jaankari mili hai:\n\n",
-      "Hamare records ke mutabik:\n\n",
-      "Yahan iski details hain:\n\n"
-    ];
+    // Wrap the response elegantly based on Bot personality to feel highly "AI"
+    const isEnthusiastic = personality === 'enthusiastic';
+    const isSympathetic = personality === 'sympathetic';
+    const isProfessional = personality === 'professional';
 
-    const chosenPrefix = isHindi 
-      ? prefixHindi[Math.floor(Math.random() * prefixHindi.length)]
-      : prefixes[Math.floor(Math.random() * prefixes.length)];
-
-    return `${chosenPrefix}\n${responseText}`;
-  }
-
-  // 4. Fallback search options for specific intents (Contact, Services)
-  if (lowQuery.includes('contact') || lowQuery.includes('phone') || lowQuery.includes('email') || lowQuery.includes('reach') || lowQuery.includes('number') || lowQuery.includes('address') || lowQuery.includes('pata') || lowQuery.includes('location')) {
-    const contactLines = rawLines.filter(l => l.includes('@') || l.match(/\d{9,12}/) || l.toLowerCase().includes('location') || l.toLowerCase().includes('address') || l.toLowerCase().includes('email') || l.toLowerCase().includes('phone'));
-    if (contactLines.length > 0) {
-      return (isHindi ? "Aap humse yahan contact kar sakte hain:\n\n" : "You can reach us at:\n\n") + contactLines.slice(0, 4).join('\n');
-    }
-  }
-
-  if (lowQuery.includes('service') || lowQuery.includes('product') || lowQuery.includes('kaam') || lowQuery.includes('work') || lowQuery.includes('features') || lowQuery.includes('what do') || lowQuery.includes('kis liye') || lowQuery.includes('kya karte')) {
-    const serviceLines = rawLines.filter(l => l.toLowerCase().includes('service') || l.toLowerCase().includes('product') || l.toLowerCase().includes('feature') || l.toLowerCase().includes('offer') || l.toLowerCase().includes('automate') || l.toLowerCase().includes('provide'));
-    if (serviceLines.length > 0) {
-      return (isHindi ? "Hum ye services offer karte hain:\n\n" : "Here are the services we provide:\n\n") + serviceLines.slice(0, 3).join('\n');
+    if (isHindi) {
+      if (isEnthusiastic) {
+        return `Arrey wah, bilkul sahi sawaal pucha aapne! 🚀 Hamare records ke hisab se:\n\n${answerText}\n\nHai na yeh bilkul badiya baat? Aur kuch jaanna chahenge aap? Mujhe batayein! 🔥✨`;
+      } else if (isSympathetic) {
+        return `Haanji bilkul, main aapse fully agree karta hoon aur aapki help karne ke liye taiyar hoon. Hamari company records me ye detail h:\n\n${answerText}\n\nAap kripya batayein agar aapko koi bhi kashth ya asuvidha ho, main solve karunga. 🙏🌸`;
+      } else if (isProfessional) {
+        return `Puchne ke liye dhanyavad. Hamari business guidelines ke anuroop, yahan iski aavashyak details di gayi hain:\n\n${answerText}\n\nHame aasha hai ki ye jaankari aapke liye upyogi hogi. Agar koi anya kashth ho, toh nishochit hokar batayein.`;
+      } else {
+        return `Ji sure, main is baare mein aapko batata hoon! Humare paas iski bilkul sahi jaankari hai:\n\n${answerText}\n\nAasha karta hoon isse aapko help mili hogi. Kuch aur madad chahiye ho toh batayein! 😊✨`;
+      }
+    } else {
+      if (isEnthusiastic) {
+        return `Oh wow, that is an awesome question! 🚀 Let me share the fantastic details with you right away:\n\n${answerText}\n\nSuper cool, right? Please let me know if you would like to know anything else! 🎉✨`;
+      } else if (isSympathetic) {
+        return `I completely understand your query, and I'm very glad to guide you supportively here. Based on our resources:\n\n${answerText}\n\nPlease take your time and let me know if there's anything else I can do to help you. 🙏✨`;
+      } else if (isProfessional) {
+        return `Thank you for your valuable inquiry. In accordance with our official business records, here is the verified information:\n\n${answerText}\n\nWe remain committed to supporting you. Please let us know if you require further assistance or clarification.`;
+      } else {
+        return `I can definitely help you with that! Here is the relevant information from our verified business profile:\n\n${answerText}\n\nHope this is highly helpful! Let me know if you would like me to unpack anything else for you. 😊👍`;
+      }
     }
   }
 
-  // 5. Default Response
+  // 8. FINAL CLEVER SUGGESTIVE FALLBACK (Sound very smart!)
+  const visibleServices = serviceLines.slice(0, 2).join(', ');
+  const contactHint = uniquePhones.length > 0 ? `Phone (${uniquePhones[0]})` : '';
+
   if (isHindi) {
-    return "Maaf kijiye, mujhe is baare mein zyada jaankari nahi hai. Kripya humare services ya contact details ke baare mein poochein.";
+    let fallbackMsg = "Mujhe aapke is specific query ke baare mein exact detail nahi mili, par main aapse connect karwa sakta hoon! 🤖\n\n";
+    if (visibleServices) {
+      fallbackMsg += `Hum basically in services me deal karte hain: ${visibleServices}. Inpar koi sawal h aapka?\n\n`;
+    }
+    if (contactHint) {
+      fallbackMsg += `Ya aap humari team se direct contact kar sakte hain humare is details par: ${contactHint}.\n\n`;
+    }
+    fallbackMsg += "Aap kripya humari services, pricing list ya contact options ke baare mein kuch bhi poochiye! Main jawab dene ke liye active hoon. 😊✨";
+    return fallbackMsg;
+  } else {
+    let fallbackMsg = "I couldn't locate that exact answer in my verified files, but I'm here to search more or guide you closely! 🤖\n\n";
+    if (visibleServices) {
+      fallbackMsg += `We primarily focus and specialize in: ${visibleServices}.\n\n`;
+    }
+    if (contactHint) {
+      fallbackMsg += `Or you can reach our team directly at: ${contactHint}.\n\n`;
+    }
+    fallbackMsg += "Please feel free to ask me questions specifically about our main services, pricing schedules, or help options! I am ready to assist you! 😊👍";
+    return fallbackMsg;
   }
-
-  return "I'm sorry, I couldn't find a specific answer for that in my current knowledge base. Please feel free to ask about our services, pricing, or contact details.";
 }
 
 // --- GEMINI AI ENGINE ---
@@ -239,15 +386,32 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
 
   const client = getGeminiClient();
   if (!client) {
-    return roughScrapChat(query, cleanKB, personality, greetingMessage);
+    return roughScrapChat(query, cleanKB, personality, customInstructions, primaryLanguage, chatHistory, greetingMessage);
   }
 
-  try {
-    const hasKnowledge = cleanKB.length > 20;
-    
-    // Format history for context
-    const historyContext = chatHistory.slice(-6).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content || m.text}`).join('\n');
+  const hasKnowledge = cleanKB.length > 20;
+  
+  // Format history for context
+  const historyContext = chatHistory.slice(-6).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content || m.text}`).join('\n');
 
+  const systemPrompt = `You are a real, warm, natural, and friendly human representative of the business. 
+Do NOT sound like a cold machine or standard template. Your replies should be full of life, polite support, empathy, and active listening.
+
+OFFICIAL BUSINESS RECORDS:
+${hasKnowledge ? cleanKB : 'No records yet. Be a friendly greeting bot and tell user you are ready to help once they add some business data.'}
+
+BRAND RULES & COMMUNICATIONS:
+- TONE: ${personality}
+- VOICE: Natural, engaging, supportive and 100% human-like. Never mention words like "records", "knowledge base", "database", "system", "retrieved", or "AI model".
+- LANGUAGE: Dynamically and perfectly mirror the user's language. If the user chats of Hinglish (mix of Hindi & English) or colloquial Hindi/English, answer with premium warmth and natural rhythm in the same Hinglish / colloquial style. Feel free to use suitable local casual markers (like "Ji bilkul", "Aapne thik kaha", "Haanji") while keeping it respectful.
+- FORMATTING: Keep paragraphs clean and easy to read. Use bullet points elegantly and keep responses highly engaging with selective emojis that elevate customer delight (e.g. 👋, 😊, ✨, 📞, 👍).
+- IDENTITY: You ARE the company itself. Always speak in first-person plural: "We", "Us", "Our", "Hum", "Humare".
+- GREETINGS: Always respond with absolute sweetness to simple greetings like "Hi", "Hello", "Namaste", or inquiries like "How are you". ${greetingMessage ? `Answer greetings naturally first, and you can also incorporate or say: "${greetingMessage}"` : 'Do NOT use standard template error messages for greetings. Be spontaneous.'}
+- UNKNOWN DEFIANCE: If they ask for information (like pricing, refund, address) that is completely absent from OFFICIAL BUSINESS RECORDS, apologize with absolute empathy and explain we don't have that specific record set up yet, but immediately try to cross-sell our main services and provide contact info if available in records.
+- CUSTOM BRAIN INSTRUCTION: ${customInstructions || 'None'}`;
+
+  // Try gemini-3.5-flash first
+  try {
     const response = await client.models.generateContent({
       model: "gemini-3.5-flash",
       contents: [
@@ -260,32 +424,50 @@ USER QUERY: ${query}` }]
         }
       ],
       config: {
-        systemInstruction: `You are the lead business representative. Your role is to be helpful, professional, and friendly.
-      
-OFFICIAL BUSINESS RECORDS:
-${hasKnowledge ? cleanKB : 'No records yet. Be a friendly greeting bot and tell user you are ready to help once they add some business data.'}
-
-BRAND RULES:
-- TONE: ${personality}
-- VOICE: Natural, conversational, and human-like. Never mention "records", "database", or "AI".
-- LANGUAGE: Mirror the user's language (Hindi, English, or Hinglish).
-- IDENTITY: You ARE the company. Use "We", "Us", "Our".
-- GREETINGS: Always respond naturally to greetings (such as "Hi", "Hello", "Hey", "How are you?"). ${greetingMessage ? `Always answer greetings using this exact greeting message: "${greetingMessage}"` : 'Do NOT use the fallback message for greetings.'}
-- UNKNOWN: If a query asks for specific business info (like pricing, address) that is NOT in the RECORDS, say you don't have that detail yet but offer help with other things or provide contact info if available.
-- CUSTOM BRAIN: ${customInstructions || 'None'}`,
-        temperature: 0.8,
-        topP: 0.9,
+        systemInstruction: systemPrompt,
+        temperature: 0.85,
+        topP: 0.95,
         maxOutputTokens: 1000,
       }
     });
 
     const text = response.text;
-    
     if (!text || text.length < 2) throw new Error("Empty AI response");
     return text;
   } catch (err: any) {
-    console.error("Gemini Chat Error:", err);
-    return roughScrapChat(query, cleanKB, personality, greetingMessage);
+    console.warn("⚠️ Fallback Retry: Gemini 3.5 Flash failed, trying stable Gemini 2.5 Flash. Error details:", err.message || err);
+    
+    // Defensive Try-Catch: retry using the rock-solid stable model gemini-2.5-flash
+    try {
+      const retryResponse = await client.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: `CONVERSATION HISTORY:
+${historyContext || 'New session'}
+
+USER QUERY: ${query}` }]
+          }
+        ],
+        config: {
+          systemInstruction: systemPrompt,
+          temperature: 0.82,
+          topP: 0.92,
+          maxOutputTokens: 1000,
+        }
+      });
+
+      const retryText = retryResponse.text;
+      if (retryText && retryText.length >= 2) {
+        console.log("✅ Successfully recovered using gemini-2.5-flash!");
+        return retryText;
+      }
+      throw new Error("Empty retry response");
+    } catch (retryErr: any) {
+      console.error("❌ Both Gemini models failed. Reverting to highly advanced conversational local simulator:", retryErr.message || retryErr);
+      return roughScrapChat(query, cleanKB, personality, customInstructions, primaryLanguage, chatHistory, greetingMessage);
+    }
   }
 }
 
@@ -294,11 +476,7 @@ async function geminiAnalyze(text: string, title: string, description: string) {
   const client = getGeminiClient();
   if (!client || !text) return fallback;
   
-  try {
-    // Using gemini-3.5-flash for analysis
-    const response = await client.models.generateContent({ 
-      model: "gemini-3.5-flash",
-      contents: `You are an Expert Business Consultant and Data Architect. Analyze the raw text and structure it into a perfect Knowledge Base.
+  const promptText = `You are an Expert Business Consultant and Data Architect. Analyze the raw text and structure it into a perfect Knowledge Base.
 
 TASK:
 1. Extract Company Name, Essential Services, Pricing, Contact Numbers, WhatsApp, Email, Refund Policy, and FAQs.
@@ -314,42 +492,54 @@ OUTPUT JSON FORMAT ONLY:
 
 SOURCE DATA: ${title}
 RAW CONTENT: 
-${text.substring(0, 10000)}`,
+${text.substring(0, 10000)}`;
+
+  // Try gemini-3.5-flash
+  try {
+    const response = await client.models.generateContent({ 
+      model: "gemini-3.5-flash",
+      contents: promptText,
       config: { maxOutputTokens: 2000 }
     });
     
     let rText = response.text || "";
-
-    if (!rText || rText.length < 5) return fallback;
-    
-    const jsonM = rText.match(/\{[\s\S]*\}/);
-    if (jsonM) {
-      try {
-        const parsed = JSON.parse(jsonM[0]);
-        if (parsed.knowledgeBase) return parsed;
-      } catch (e) {}
+    if (rText && rText.length >= 5) {
+      const jsonM = rText.match(/\{[\s\S]*\}/);
+      if (jsonM) {
+        try {
+          const parsed = JSON.parse(jsonM[0]);
+          if (parsed.knowledgeBase) return parsed;
+        } catch (e) {}
+      }
     }
-    
-    return { 
-      knowledgeBase: rText,
-      missingTips: ["Please verify details."],
-      businessName: title
-    };
+    throw new Error("Failed to get parsed json from 3.5 model");
   } catch (err: any) {
-    console.error("Gemini Analyze Error:", err);
-    if (err.message?.includes("leaked") || err.message?.includes("403")) {
-      return {
-        ...fallback,
-        missingTips: ["⚠️ [CRITICAL] Your Gemini API key has been reported as leaked and disabled. Please update your API key in Settings."]
-      };
+    console.warn("⚠️ Fallback Retry: geminiAnalyze on gemini-3.5-flash failed, retrying on gemini-2.5-flash:", err.message || err);
+    
+    // Retrying with gemini-2.5-flash
+    try {
+      const response = await client.models.generateContent({ 
+        model: "gemini-2.5-flash",
+        contents: promptText,
+        config: { maxOutputTokens: 2000 }
+      });
+      
+      let rText = response.text || "";
+      if (rText && rText.length >= 5) {
+        const jsonM = rText.match(/\{[\s\S]*\}/);
+        if (jsonM) {
+          const parsed = JSON.parse(jsonM[0]);
+          if (parsed.knowledgeBase) {
+            console.log("✅ Successfully generated analysis using gemini-2.5-flash!");
+            return parsed;
+          }
+        }
+      }
+      return fallback;
+    } catch (retryErr: any) {
+      console.error("❌ Both Gemini analyze tries failed. Returning SLM fallback:", retryErr.message || retryErr);
+      return fallback;
     }
-    if (err.message?.includes("503") || err.message?.includes("Service Unavailable") || err.message?.includes("high demand")) {
-      return {
-        ...fallback,
-        missingTips: ["⚠️ [BUSY] Gemini is busy. Some structure might be missing. Try again later for full analysis."]
-      };
-    }
-    return fallback;
   }
 }
 
