@@ -34,56 +34,7 @@ import { signOut } from 'firebase/auth';
 import { toast } from 'sonner';
 
 const ConfigAlert = memo(() => {
-  const [config, setConfig] = useState<any>(null);
-
-  useEffect(() => {
-    fetch('/api/config-status')
-      .then(res => res.json())
-      .then(data => setConfig(data))
-      .catch(() => {});
-  }, []);
-
-  if (!config) return null;
-
-  const missingKeys = [];
-  if (!config.ai) {
-    missingKeys.push("GEMINI_API_KEY");
-  }
-
-  if (missingKeys.length === 0) return null;
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      className="mb-8 p-6 bg-white border-2 border-amber-500/20 rounded-[2.5rem] flex flex-col md:flex-row items-start md:items-center space-y-4 md:space-y-0 md:space-x-6 shadow-xl shadow-amber-500/5 relative overflow-hidden"
-    >
-      <div className="absolute top-0 right-0 p-8 opacity-5">
-        <AlertTriangle className="w-24 h-24 text-amber-600" />
-      </div>
-
-      <div className="w-14 h-14 bg-amber-500 rounded-3xl flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/20">
-        <AlertTriangle className="w-7 h-7 text-white" />
-      </div>
-      <div className="flex-1">
-        <h4 className="text-lg font-black text-brand-dark uppercase tracking-tight">Gemini AI Key Required</h4>
-        <p className="text-sm text-gray-500 mt-1 font-medium max-w-2xl leading-relaxed">
-          The app is missing your <span className="text-amber-600 font-bold underline">GEMINI_API_KEY</span>. 
-          Please add it under **Settings &rarr; Secrets** in the coding environment so your custom bots can use modern AI reasoning instead of deterministic fallback.
-        </p>
-      </div>
-      <div className="flex items-center space-x-3 w-full md:w-auto">
-        <a 
-          href="https://ai.studio/build/settings" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="flex-1 md:flex-none px-6 py-4 bg-brand-dark text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl active:scale-95 text-center whitespace-nowrap"
-        >
-          Open Settings
-        </a>
-      </div>
-    </motion.div>
-  );
+  return null;
 });
 
 ConfigAlert.displayName = 'ConfigAlert';

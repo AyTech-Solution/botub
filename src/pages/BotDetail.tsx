@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, memo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { doc, getDoc, collection, query, where, onSnapshot, addDoc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { generateBotResponse } from '../services/botService';
+import { generateBotResponse, analyzeWebsite } from '../services/botService';
 import { 
   Bot, 
   ArrowLeft, 
@@ -33,6 +33,7 @@ import {
   Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { toast } from 'sonner';
 import { deleteDoc } from 'firebase/firestore';
 import IntegrationGuide from '../components/IntegrationGuide';
 import { 
@@ -210,6 +211,8 @@ export default function BotDetail() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [knowledgeInput, setKnowledgeInput] = useState('');
   const [isSavingKnowledge, setIsSavingKnowledge] = useState(false);
+  const [importUrl, setImportUrl] = useState('');
+  const [isImportingWebsite, setIsImportingWebsite] = useState(false);
   const [historicalData] = useState(generateHistoricalData());
   const [activeTab, setActiveTab] = useState<'preview' | 'analytics' | 'knowledge'>('preview');
 
@@ -459,6 +462,28 @@ export default function BotDetail() {
       console.error("Error adding knowledge:", err);
     } finally {
       setIsSavingKnowledge(false);
+    }
+  };
+
+  const handleImportFromWebsite = async () => {
+    if (!importUrl.trim()) return;
+    setIsImportingWebsite(true);
+    try {
+      const data = await analyzeWebsite(importUrl.trim());
+      if (data && data.result && data.result.knowledgeBase) {
+        const header = `--- SOURCE: ${importUrl.toUpperCase()} ---`;
+        const content = data.result.knowledgeBase;
+        setKnowledgeInput(prev => prev ? `${prev}\n\n${header}\n${content}` : `${header}\n${content}`);
+        setImportUrl('');
+        toast.success("Website successfully analyzed! Extracted content loaded in the text box below.");
+      } else {
+        throw new Error("Could not extract any content from the website.");
+      }
+    } catch (err: any) {
+      console.error("Import error:", err);
+      toast.error(err.message || "Failed to analyze website content.");
+    } finally {
+      setIsImportingWebsite(false);
     }
   };
 
@@ -1151,7 +1176,37 @@ export default function BotDetail() {
                         className="mb-8 overflow-hidden"
                       >
                         <div className="p-6 bg-brand-light rounded-[2rem] border border-brand-primary/10 space-y-4">
-                          <h4 className="text-[10px] font-black text-brand-primary uppercase tracking-widest">Add New Knowledge</h4>
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-brand-primary/10 pb-4">
+                            <h4 className="text-[10px] font-black text-brand-primary uppercase tracking-widest">Add New Knowledge</h4>
+                            
+                            <div className="flex gap-2 w-full md:w-auto">
+                              <input
+                                type="url"
+                                placeholder="Paste website URL to auto-extract info..."
+                                value={importUrl}
+                                onChange={(e) => setImportUrl(e.target.value)}
+                                className="flex-1 md:w-80 px-4 py-2 bg-white border border-brand-primary/10 rounded-xl focus:ring-2 focus:ring-brand-primary outline-none transition-all text-xs font-medium"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleImportFromWebsite}
+                                disabled={isImportingWebsite || !importUrl.trim()}
+                                className="px-4 py-2 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-brand-secondary transition-all disabled:opacity-50 flex items-center shrink-0"
+                              >
+                                {isImportingWebsite ? (
+                                  <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                                    Analyzing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Globe className="w-3.5 h-3.5 mr-1.5" />
+                                    Import Web
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
                           <textarea
                             placeholder="Enter facts, instructions, or context for your bot..."
                             value={knowledgeInput}

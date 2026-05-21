@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, deleteDoc, collection, addDoc } from 'firebase/firestore';
+import { analyzeWebsite } from '../services/botService';
 import { 
   Bot as BotIcon, 
   ArrowLeft, 
@@ -68,6 +69,7 @@ export default function BotSettings() {
   const [brandingColor, setBrandingColor] = useState('#4f46e5');
   const [position, setPosition] = useState<'left' | 'right'>('right');
   const [links, setLinks] = useState<string[]>([]);
+  const [isAnalyzingLink, setIsAnalyzingLink] = useState<{ [key: number]: boolean }>({});
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -205,6 +207,36 @@ export default function BotSettings() {
         toast.success('Avatar uploaded successfully!');
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAnalyzeLink = async (url: string, index: number) => {
+    if (!url || !url.trim() || !botId) {
+      toast.error("Please enter a valid website URL first.");
+      return;
+    }
+    
+    setIsAnalyzingLink(prev => ({ ...prev, [index]: true }));
+    const toastId = toast.loading(`Analyzing "${url}"...`);
+    try {
+      const data = await analyzeWebsite(url.trim());
+      if (data && data.result && data.result.knowledgeBase) {
+        // Save the analyzed content directly in the bot's knowledge collection
+        await addDoc(collection(db, 'bots', botId, 'knowledge'), {
+          botId,
+          content: data.result.knowledgeBase,
+          sourceUrl: url.trim(),
+          lastUpdated: new Date().toISOString()
+        });
+        toast.success(`Successfully analyzed "${url}" and added the extracted data to the Knowledge Base!`, { id: toastId });
+      } else {
+        throw new Error("Could not extract text content from the website.");
+      }
+    } catch (err: any) {
+      console.error("Link analysis error:", err);
+      toast.error(err.message || "Failed to analyze website link.", { id: toastId });
+    } finally {
+      setIsAnalyzingLink(prev => ({ ...prev, [index]: false }));
     }
   };
 
@@ -503,6 +535,22 @@ export default function BotSettings() {
                       className="w-full pl-12 pr-4 py-4 rounded-2xl border border-slate-100 bg-slate-50 focus:bg-white focus:border-indigo-400 font-bold text-sm transition-all"
                     />
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => handleAnalyzeLink(link, index)}
+                    disabled={isAnalyzingLink[index] || !link?.trim()}
+                    className="px-5 py-4 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 disabled:opacity-50 rounded-2xl transition-all flex items-center justify-center shrink-0 font-bold whitespace-nowrap"
+                    title="Analyze and import content to Knowledge Base"
+                  >
+                    {isAnalyzingLink[index] ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-pulse-slow" />
+                        <span className="text-[10px] font-black uppercase tracking-wider">Analyze</span>
+                      </>
+                    )}
+                  </button>
                   <button
                     type="button"
                     onClick={() => setLinks(links.filter((_, i) => i !== index))}
