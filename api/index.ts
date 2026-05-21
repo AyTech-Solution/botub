@@ -4,6 +4,7 @@ import { load } from "cheerio";
 import cors from "cors";
 import nodemailer from "nodemailer";
 import { GoogleGenAI } from "@google/genai";
+import Groq from "groq-sdk";
 import "dotenv/config";
 import https from "https";
 
@@ -37,6 +38,18 @@ function getGeminiClient(): GoogleGenAI | null {
   }
   
   return aiInstance;
+}
+
+// --- GROQ AI CONFIG ---
+let groqInstance: Groq | null = null;
+function getGroqClient(): Groq | null {
+  const currentKey = process.env.GROQ_API_KEY;
+  if (!currentKey) return null;
+  if (!groqInstance) {
+    groqInstance = new Groq({ apiKey: currentKey });
+    console.log("✅ Groq AI Engine initialized with key from environment.");
+  }
+  return groqInstance;
 }
 
 // --- MAILING LOGIC (Merged to prevent Vercel import issues) ---
@@ -384,11 +397,6 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
     .substring(0, 15000)
     .trim();
 
-  const client = getGeminiClient();
-  if (!client) {
-    return roughScrapChat(query, cleanKB, personality, customInstructions, primaryLanguage, chatHistory, greetingMessage);
-  }
-
   const hasKnowledge = cleanKB.length > 20;
   
   // Format history for context
@@ -398,47 +406,88 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
 Do NOT sound like a cold machine or standard template. Your replies should be full of life, polite support, empathy, and active listening.
 
 OFFICIAL BUSINESS RECORDS:
-${hasKnowledge ? cleanKB : 'No records yet. Be a friendly greeting bot and tell user you are ready to help once they add some business data.'}
+${hasKnowledge ? cleanKB : 'No specific custom business details are uploaded yet. Be a super warm, friendly representative of our modern startup platform called Botub. Answer general support, greetings, and generic questions beautifully and intellectually while representing us gracefully.'}
 
 BRAND RULES & COMMUNICATIONS:
 - TONE: ${personality}
 - VOICE: Natural, engaging, supportive and 100% human-like. Never mention words like "records", "knowledge base", "database", "system", "retrieved", or "AI model".
-- LANGUAGE: Dynamically and perfectly mirror the user's language. If the user chats of Hinglish (mix of Hindi & English) or colloquial Hindi/English, answer with premium warmth and natural rhythm in the same Hinglish / colloquial style. Feel free to use suitable local casual markers (like "Ji bilkul", "Aapne thik kaha", "Haanji") while keeping it respectful.
+- LANGUAGE: Dynamically and perfectly mirror the user's language. If the user chats in Hinglish (mix of Hindi & English) or colloquial Hindi/English, answer with premium warmth and natural rhythm in the same Hinglish / colloquial style. Feel free to use suitable local casual markers (like "Ji bilkul", "Aapne thik kaha", "Haanji") while keeping it respectful. Never speak like a robotic translation tool.
 - FORMATTING: Keep paragraphs clean and easy to read. Use bullet points elegantly and keep responses highly engaging with selective emojis that elevate customer delight (e.g. 👋, 😊, ✨, 📞, 👍).
 - IDENTITY: You ARE the company itself. Always speak in first-person plural: "We", "Us", "Our", "Hum", "Humare".
 - GREETINGS: Always respond with absolute sweetness to simple greetings like "Hi", "Hello", "Namaste", or inquiries like "How are you". ${greetingMessage ? `Answer greetings naturally first, and you can also incorporate or say: "${greetingMessage}"` : 'Do NOT use standard template error messages for greetings. Be spontaneous.'}
-- UNKNOWN DEFIANCE: If they ask for information (like pricing, refund, address) that is completely absent from OFFICIAL BUSINESS RECORDS, apologize with absolute empathy and explain we don't have that specific record set up yet, but immediately try to cross-sell our main services and provide contact info if available in records.
+- UNKNOWN DEFIANCE: If they ask for specific private business details (like pricing, refund, address) that are completely absent from OFFICIAL BUSINESS RECORDS, apologize with absolute empathy and explain we don't have that specific record set up yet, but immediately try to cross-sell our main services and provide contact info if available in records. If it is general knowledge, answer it smartly with high-quality AI capability!
 - CUSTOM BRAIN INSTRUCTION: ${customInstructions || 'None'}`;
 
-  // Try gemini-3.5-flash first
-  try {
-    const response = await client.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: `CONVERSATION HISTORY:
+  // Try Gemini 3.5 Flash first
+  const client = getGeminiClient();
+  if (client) {
+    try {
+      console.log("🤖 Attempting chat completion with Gemini 3.5 Flash...");
+      const response = await client.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: `CONVERSATION HISTORY:
 ${historyContext || 'New session'}
 
 USER QUERY: ${query}` }]
+          }
+        ],
+        config: {
+          systemInstruction: systemPrompt,
+          temperature: 0.85,
+          topP: 0.95,
+          maxOutputTokens: 1000,
         }
-      ],
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 0.85,
-        topP: 0.95,
-        maxOutputTokens: 1000,
-      }
-    });
+      });
 
-    const text = response.text;
-    if (!text || text.length < 2) throw new Error("Empty AI response");
-    return text;
-  } catch (err: any) {
-    console.warn("⚠️ Fallback Retry: Gemini 3.5 Flash failed, trying stable Gemini 2.5 Flash. Error details:", err.message || err);
-    
-    // Defensive Try-Catch: retry using the rock-solid stable model gemini-2.5-flash
+      const text = response.text;
+      if (text && text.length >= 2) return text;
+      throw new Error("Empty Gemini response");
+    } catch (err: any) {
+      console.warn("⚠️ Gemini 3.5 Flash failed, trying fallback. Error details:", err.message || err);
+    }
+  }
+
+  // Dual Fallback: Try Groq Client (Llama 3.3)
+  const groq = getGroqClient();
+  if (groq) {
     try {
+      console.log("🚀 Attempting fallback chat completion with Groq (Llama-3.3-70b)...");
+      const messages: any[] = [
+        { role: "system", content: systemPrompt }
+      ];
+      chatHistory.slice(-6).forEach(m => {
+        messages.push({
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: m.content || m.text || ""
+        });
+      });
+      messages.push({ role: "user", content: query });
+
+      const response = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages,
+        temperature: 0.85,
+        max_tokens: 1000,
+      });
+
+      const text = response.choices[0]?.message?.content;
+      if (text && text.length >= 2) {
+        console.log("✅ Successfully generated response using Groq!");
+        return text;
+      }
+      throw new Error("Empty Groq response");
+    } catch (err: any) {
+      console.warn("⚠️ Groq fallback chat completion failed. Error details:", err.message || err);
+    }
+  }
+
+  // Backup Retry: try Gemini dev model
+  if (client) {
+    try {
+      console.log("🤖 Attempting last-resort with gemini-2.5-flash...");
       const retryResponse = await client.models.generateContent({
         model: "gemini-2.5-flash",
         contents: [
@@ -463,12 +512,14 @@ USER QUERY: ${query}` }]
         console.log("✅ Successfully recovered using gemini-2.5-flash!");
         return retryText;
       }
-      throw new Error("Empty retry response");
     } catch (retryErr: any) {
-      console.error("❌ Both Gemini models failed. Reverting to highly advanced conversational local simulator:", retryErr.message || retryErr);
-      return roughScrapChat(query, cleanKB, personality, customInstructions, primaryLanguage, chatHistory, greetingMessage);
+      console.error("❌ gemini-2.5-flash fallback failed:", retryErr.message || retryErr);
     }
   }
+
+  // Ultimate deterministic fallback
+  console.log("💡 Reverting to local natural engine fallback.");
+  return roughScrapChat(query, cleanKB, personality, customInstructions, primaryLanguage, chatHistory, greetingMessage);
 }
 
 async function geminiAnalyze(text: string, title: string, description: string) {
@@ -639,7 +690,7 @@ apiRouter.post("/analyze-text", async (req, res) => {
 });
 
 apiRouter.post("/chat", async (req, res) => {
-  const { prompt, knowledgeBase, personality, customInstructions, primaryLanguage, chatHistory, greetingMessage } = req.body;
+  const { prompt, knowledgeBase, personality, customInstructions, primaryLanguage, chatHistory, greetingMessage, botName, ownerEmail } = req.body;
   try {
     const text = await geminiChat(
       prompt || '', 
@@ -650,6 +701,73 @@ apiRouter.post("/chat", async (req, res) => {
       chatHistory || [],
       greetingMessage || ''
     );
+
+    // LEAD CAPTURE DETECTION & REAL-TIME EMAIL ALERT
+    try {
+      const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
+      const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,5}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,10}/gi;
+      
+      const emailMatches = prompt?.match(emailRegex);
+      const phoneMatches = prompt?.match(phoneRegex);
+      const validPhones = phoneMatches ? phoneMatches.filter(p => p.replace(/\D/g, '').length >= 8) : [];
+      
+      if (emailMatches || validPhones.length > 0) {
+        console.log("🔥 Lead detected in user chat message! Starting email notification...");
+        const recipient = ownerEmail || process.env.SMTP_USER;
+        
+        if (recipient && process.env.SMTP_USER && process.env.SMTP_PASS) {
+          const contentHtml = `
+            <div style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 30px; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 20px; background-color: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
+              <div style="text-align: center; margin-bottom: 25px;">
+                <span style="font-size: 40px;">🔥</span>
+                <h2 style="color: #4f46e5; margin: 10px 0 5px 0; font-weight: 800; font-size: 24px;">New Lead Captured!</h2>
+                <p style="color: #64748b; margin: 0; font-size: 14px;">Your Botub AI representative has gathered fresh contact information.</p>
+              </div>
+              
+              <div style="background-color: #f8fafc; padding: 20px; border-radius: 16px; border: 1px solid #f1f5f9; margin-bottom: 25px;">
+                <h3 style="margin: 0 0 15px 0; color: #0f172a; font-size: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">Contact Information</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                  ${emailMatches ? `
+                  <tr>
+                    <td style="padding: 6px 0; font-weight: 600; color: #475569; width: 120px; font-size: 14px;">Email Address:</td>
+                    <td style="padding: 6px 0; color: #0f172a; font-size: 14px;"><a href="mailto:${emailMatches[0]}" style="color: #4f46e5; text-decoration: none; font-weight: 600;">${emailMatches[0]}</a></td>
+                  </tr>` : ''}
+                  ${validPhones.length > 0 ? `
+                  <tr>
+                    <td style="padding: 6px 0; font-weight: 600; color: #475569; width: 120px; font-size: 14px;">Phone Number:</td>
+                    <td style="padding: 6px 0; color: #0f172a; font-size: 14px;"><a href="tel:${validPhones[0]}" style="color: #4f46e5; text-decoration: none; font-weight: 600;">${validPhones[0]}</a></td>
+                  </tr>` : ''}
+                  <tr>
+                    <td style="padding: 6px 0; font-weight: 600; color: #475569; width: 120px; font-size: 14px;">Chatbot Name:</td>
+                    <td style="padding: 6px 0; color: #0f172a; font-size: 14px; font-weight: 500;">${botName || 'My Assistant'}</td>
+                  </tr>
+                </table>
+              </div>
+              
+              <div style="border-left: 4px solid #cbd5e1; padding-left: 15px; margin: 20px 0; font-style: italic; color: #475569; font-size: 14px; line-height: 1.6;">
+                <strong>User Message:</strong> "${prompt}"
+              </div>
+              
+              <div style="text-align: center; margin-top: 30px; border-t: 1px solid #f1f5f9; padding-top: 20px;">
+                <p style="font-size: 11px; color: #94a3b8; text-transform: uppercase; tracking-wider: 0.05em; margin: 0;">Powered by Botub Mailing System</p>
+              </div>
+            </div>
+          `;
+
+          await internalSendEmail({
+            to: recipient,
+            subject: `🔥 New Lead Captured by ${botName || 'your Chatbot'}!`,
+            html: contentHtml
+          });
+          console.log("✅ Lead email sent successfully to", recipient);
+        } else {
+          console.warn("⚠️ SMTP Credentials missing, skipping lead email alert send.");
+        }
+      }
+    } catch (mailErr: any) {
+      console.error("⚠️ Background lead email notify failed:", mailErr.message || mailErr);
+    }
+
     res.json({ text });
   } catch (err: any) {
     res.status(500).json({ error: "Execution Fail" });

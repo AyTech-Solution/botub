@@ -108,7 +108,21 @@ export default function WidgetPage() {
         const botSnap = await getDoc(botRef);
         if (botSnap.exists()) {
           const botData = botSnap.data();
-          setBot(botData);
+          
+          let ownerEmail = botData.ownerEmail || '';
+          if (!ownerEmail && botData.ownerId) {
+            try {
+              const userRef = doc(db, 'users', botData.ownerId);
+              const userSnap = await getDoc(userRef);
+              if (userSnap.exists()) {
+                ownerEmail = userSnap.data().email || '';
+              }
+            } catch (err) {
+              console.warn("Could not retrieve owner's profile email:", err);
+            }
+          }
+          
+          setBot({ ...botData, ownerEmail });
           
           // Fetch knowledge
           const qKnowledge = query(collection(db, 'bots', botId, 'knowledge'));
@@ -173,7 +187,9 @@ export default function WidgetPage() {
         bot.customInstructions || '', 
         bot.primaryLanguage || 'auto',
         messages,
-        bot.greetingMessage || ''
+        bot.greetingMessage || '',
+        bot.name,
+        bot.ownerEmail
       );
       
       const botMessage = {

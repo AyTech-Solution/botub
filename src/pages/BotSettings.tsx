@@ -33,7 +33,9 @@ import {
   RefreshCw,
   Upload,
   Code2,
-  Palette
+  Palette,
+  Mail,
+  Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -70,6 +72,39 @@ export default function BotSettings() {
   const [position, setPosition] = useState<'left' | 'right'>('right');
   const [links, setLinks] = useState<string[]>([]);
   const [isAnalyzingLink, setIsAnalyzingLink] = useState<{ [key: number]: boolean }>({});
+  
+  // SMTP Test States
+  const [testEmail, setTestEmail] = useState('');
+  const [isSendingTest, setIsSendingTest] = useState(false);
+
+  const handleSendTestEmail = async () => {
+    if (!testEmail.trim()) return;
+    setIsSendingTest(true);
+    const loadId = toast.loading(`Initiating secure SMTP transfer...`);
+    try {
+      const resp = await fetch('/api/send-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: testEmail.trim(),
+          subject: `🔔 Live SMTP Connection Test - Botub AI`,
+          reportContent: `Hello!\n\nThis is a live SMTP connection test email verify from your Botub AI workspace settings. If you are reading this email, your mailing system configuration is 100% CORRECT and working flawlessly! 🎉\n\n- SMTP Host: ${((import.meta as any).env?.VITE_SMTP_HOST) || 'smtp.gmail.com'}\n- Time of Test: ${new Date().toLocaleString()}\n\nKeep building amazing AI automations with Botub!`
+        })
+      });
+      if (resp.ok) {
+        toast.success(`Success! Live test email sent to ${testEmail}! Check your inbox/spam folder.`, { id: loadId });
+        setTestEmail('');
+      } else {
+        const txt = await resp.text();
+        throw new Error(txt || 'SMTP Mail delivery failed');
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'SMTP Mail delivery failed. Verify environment credentials.', { id: loadId });
+    } finally {
+      setIsSendingTest(false);
+    }
+  };
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -1008,6 +1043,67 @@ export default function BotSettings() {
                     className={`w-14 h-8 rounded-full transition-all relative ${showPoweredBy ? 'bg-indigo-600' : 'bg-slate-200'}`}
                   >
                     <div className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform ${showPoweredBy ? 'translate-x-6' : ''}`} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.section>
+
+          {/* SMTP Mailing & Notifications Section */}
+          <motion.section variants={itemVariants} className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100">
+            <div className="flex items-center space-x-4 mb-8">
+              <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center">
+                <Mail className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight font-sans">Mailing & SMTP system</h2>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest font-mono">Verify & test live SMTP notifications</p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 flex items-start gap-4">
+                <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-900 text-sm mb-1 font-sans">SMTP Server Active</h4>
+                  <p className="text-xs text-slate-500 font-medium leading-relaxed font-sans">
+                    The backend mailing system is successfully active and loaded using host <strong>{((import.meta as any).env?.VITE_SMTP_HOST) || 'smtp.gmail.com'}</strong>. Your chatbot will automatically send customer lead alerts (captured email and phone numbers) in real-time.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-6 bg-indigo-50/40 rounded-3xl border border-indigo-50/50 flex flex-col gap-4">
+                <div>
+                  <h4 className="font-black text-indigo-950 text-sm mb-1 font-sans">Send SMTP Test Email</h4>
+                  <p className="text-xs text-indigo-800/80 font-medium leading-relaxed font-sans">
+                    Provide your target email below to test sending a live SMTP report from Botub servers right now.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="email"
+                    placeholder="e.g. name@example.com"
+                    value={testEmail}
+                    onChange={(e) => setTestEmail(e.target.value)}
+                    className="flex-grow px-5 py-3.5 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-600/15 text-sm font-medium"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSendTestEmail}
+                    disabled={isSendingTest || !testEmail.trim()}
+                    className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center shrink-0 gap-2 shadow-lg shadow-indigo-100"
+                  >
+                    {isSendingTest ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        Send Test
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

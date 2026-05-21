@@ -376,7 +376,9 @@ export default function BotDetail() {
       bot.customInstructions, 
       bot.primaryLanguage,
       messages,
-      bot.greetingMessage
+      bot.greetingMessage,
+      bot.name,
+      userProfile?.email || bot.ownerEmail
     );
     
     // Artificial delay based on responseSpeed setting
