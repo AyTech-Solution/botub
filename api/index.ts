@@ -167,7 +167,7 @@ async function geminiChat(query: string, knowledgeBase: string, personality: str
     const historyContext = chatHistory.slice(-6).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content || m.text}`).join('\n');
 
     const response = await client.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.5-flash",
       contents: [
         {
           role: 'user',
@@ -219,9 +219,9 @@ async function geminiAnalyze(text: string, title: string, description: string) {
   if (!client || !text) return fallback;
   
   try {
-    // Using gemini-2.5-flash for analysis
+    // Using gemini-3.5-flash for analysis
     const response = await client.models.generateContent({ 
-      model: "gemini-2.5-flash",
+      model: "gemini-3.5-flash",
       contents: `You are an Expert Business Consultant and Data Architect. Analyze the raw text and structure it into a perfect Knowledge Base.
 
 TASK:

@@ -359,7 +359,13 @@ export default function BotDetail() {
       console.error("Error saving user message to history:", err);
     }
 
-    const fullKnowledge = knowledge.map(k => k.content).join('\n\n');
+    const knowledgeContent = (knowledge || []).map(k => k.content).join('\n\n');
+    const companyBio = bot?.companyDetails || bot?.description || '';
+    const companyName = bot?.companyName || '';
+    const botName = bot?.name || '';
+    
+    const fullKnowledge = `BOT NAME: ${botName}\nCOMPANY NAME: ${companyName}\n--- PRIMARY BUSINESS DETAILS ---\n${companyBio}\n\n--- ADDITIONAL KNOWLEDGE BASE ---\n${knowledgeContent}\n\n--- OFFICIAL LINKS ---\n${(bot?.links || []).join(', ')}`;
+
     const botResponse = await generateBotResponse(
       userMsg, 
       fullKnowledge, 
