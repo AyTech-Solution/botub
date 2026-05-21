@@ -428,7 +428,7 @@ BRAND RULES & COMMUNICATIONS:
   const client = getGeminiClient();
   if (client) {
     try {
-      console.log("🤖 Attempting chat completion with Gemini 3.5 Flash...");
+      console.log("🤖 Attempting chat completion with Gemini 3.5 Flash (Google Search Grounding Active)...");
       const response = await client.models.generateContent({
         model: "gemini-3.5-flash",
         contents: [
@@ -445,11 +445,30 @@ USER QUERY: ${query}` }]
           temperature: 0.85,
           topP: 0.95,
           maxOutputTokens: 1000,
+          tools: [{ googleSearch: {} }]
         }
       });
 
-      const text = response.text;
-      if (text && text.length >= 2) return text;
+      let text = response.text;
+      if (text && text.length >= 2) {
+        const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+        if (chunks && Array.isArray(chunks) && chunks.length > 0) {
+          const uniqueSources = new Map<string, string>();
+          for (const chunk of chunks) {
+            const web = chunk.web;
+            if (web && web.uri) {
+              uniqueSources.set(web.uri, web.title || web.uri);
+            }
+          }
+          if (uniqueSources.size > 0) {
+            text += "\n\n🌐 **Verified Sources:**";
+            uniqueSources.forEach((title, uri) => {
+              text += `\n- [${title}](${uri})`;
+            });
+          }
+        }
+        return text;
+      }
       throw new Error("Empty Gemini response");
     } catch (err: any) {
       console.warn("⚠️ Gemini 3.5 Flash failed, trying fallback. Error details:", err.message || err);
@@ -493,7 +512,7 @@ USER QUERY: ${query}` }]
   // Backup Retry: try Gemini dev model
   if (client) {
     try {
-      console.log("🤖 Attempting last-resort with gemini-2.5-flash...");
+      console.log("🤖 Attempting last-resort with gemini-2.5-flash (Google Search Grounding Active)...");
       const retryResponse = await client.models.generateContent({
         model: "gemini-2.5-flash",
         contents: [
@@ -510,12 +529,29 @@ USER QUERY: ${query}` }]
           temperature: 0.82,
           topP: 0.92,
           maxOutputTokens: 1000,
+          tools: [{ googleSearch: {} }]
         }
       });
 
-      const retryText = retryResponse.text;
+      let retryText = retryResponse.text;
       if (retryText && retryText.length >= 2) {
-        console.log("✅ Successfully recovered using gemini-2.5-flash!");
+        const chunks = retryResponse.candidates?.[0]?.groundingMetadata?.groundingChunks;
+        if (chunks && Array.isArray(chunks) && chunks.length > 0) {
+          const uniqueSources = new Map<string, string>();
+          for (const chunk of chunks) {
+            const web = chunk.web;
+            if (web && web.uri) {
+              uniqueSources.set(web.uri, web.title || web.uri);
+            }
+          }
+          if (uniqueSources.size > 0) {
+            retryText += "\n\n🌐 **Verified Sources:**";
+            uniqueSources.forEach((title, uri) => {
+              retryText += `\n- [${title}](${uri})`;
+            });
+          }
+        }
+        console.log("✅ Successfully recovered using gemini-2.5-flash with search routing!");
         return retryText;
       }
     } catch (retryErr: any) {

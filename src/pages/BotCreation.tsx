@@ -89,6 +89,57 @@ const SuccessConfetti = () => {
   );
 };
 
+function getIconForSection(title: string): string {
+  const t = title.toLowerCase();
+  if (t.includes('about') || t.includes('company') || t.includes('identity') || t.includes('overview') || t.includes('general')) return '🏢';
+  if (t.includes('service') || t.includes('product') || t.includes('offer') || t.includes('feature')) return '🛠️';
+  if (t.includes('price') || t.includes('pricing') || t.includes('cost') || t.includes('plan') || t.includes('fee')) return '💰';
+  if (t.includes('contact') || t.includes('phone') || t.includes('email') || t.includes('support') || t.includes('whatsapp') || t.includes('link')) return '📞';
+  if (t.includes('refund') || t.includes('policy') || t.includes('privacy') || t.includes('rule') || t.includes('term')) return '🔐';
+  if (t.includes('faq') || t.includes('question') || t.includes('answer')) return '❓';
+  return '📝';
+}
+
+function parseExtractedKnowledge(markdownText: string) {
+  const sections: { title: string; content: string; icon: string }[] = [];
+  if (!markdownText) return sections;
+  
+  const lines = markdownText.split('\n');
+  let currentSectionTitle = 'General Overview';
+  let currentSectionContent: string[] = [];
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    
+    // Check if line looks like a header (Markdown h3/h2, nested bold or key section headers)
+    const isHeader = trimmed.startsWith('###') || trimmed.startsWith('##') || (trimmed.startsWith('**') && trimmed.endsWith('**')) || trimmed.endsWith(':');
+    if (isHeader) {
+      if (currentSectionContent.length > 0) {
+        sections.push({
+          title: currentSectionTitle,
+          content: currentSectionContent.join('\n'),
+          icon: getIconForSection(currentSectionTitle)
+        });
+        currentSectionContent = [];
+      }
+      currentSectionTitle = trimmed.replace(/[#*:]/g, '').trim();
+    } else {
+      currentSectionContent.push(line);
+    }
+  }
+  
+  if (currentSectionContent.length > 0 || sections.length === 0) {
+    sections.push({
+      title: currentSectionTitle,
+      content: currentSectionContent.join('\n') || markdownText,
+      icon: getIconForSection(currentSectionTitle)
+    });
+  }
+  
+  return sections;
+}
+
 export default function BotCreation() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -109,6 +160,11 @@ export default function BotCreation() {
   const [scannedSuggestions, setScannedSuggestions] = useState<{text: string, url: string, isTip?: boolean}[]>([]);
   const [tipToFix, setTipToFix] = useState<string | null>(null);
   const [tipValue, setTipValue] = useState('');
+  
+  // Custom interactive breakdown and optimization states
+  const [selectedBreakdownTab, setSelectedBreakdownTab] = useState(0);
+  const [editingBreakdownIndex, setEditingBreakdownIndex] = useState<number | null>(null);
+  const [editingBreakdownValue, setEditingBreakdownValue] = useState('');
   
   // New Premium Features State
   const [personality, setPersonality] = useState('professional');
@@ -654,89 +710,307 @@ export default function BotCreation() {
                     )}
 
                     {analysisResult && (
-                      <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
-                        <div className="flex items-center space-x-2 text-emerald-700 mb-2">
-                          <CheckCircle2 className="w-4 h-4" />
-                          <p className="text-xs font-bold">Successfully extracted data</p>
-                        </div>
-                        {scannedSuggestions.length > 0 && (
-                          <div className="flex flex-col space-y-3 mt-4">
-                            <p className="text-[10px] font-black text-indigo-900 uppercase tracking-widest">Recommended Actions:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {scannedSuggestions.map((s, i) => (
-                                <div key={i} className="flex items-center">
-                                  {s.isTip ? (
-                                    <button
-                                      onClick={() => {
-                                        setTipToFix(s.text);
-                                        setTipValue('');
-                                      }}
-                                      className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-[10px] font-bold shadow-sm hover:bg-indigo-700 transition-all flex items-center space-x-1"
-                                    >
-                                      <Zap className="w-2.5 h-2.5 mr-1" />
-                                      <span>Add: {s.text.replace('missing', '').trim()}</span>
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={() => s.url && setWebsiteUrl(s.url)}
-                                      disabled={!s.url}
-                                      className="px-3 py-1.5 rounded-lg bg-white border border-emerald-200 text-emerald-600 text-[10px] font-bold shadow-sm hover:bg-emerald-50 transition-all"
-                                    >
-                                      {s.text}
-                                    </button>
-                                  )}
+                      <div className="mt-8 space-y-6">
+                        {/* Summary & Score banner */}
+                        {(() => {
+                          const extractedSections = parseExtractedKnowledge(analysisResult);
+                          const missingTipsList = scannedSuggestions.filter(s => s.isTip);
+                          const totalPoints = extractedSections.length + missingTipsList.length;
+                          const scoreValue = totalPoints > 0 ? Math.max(10, Math.min(100, Math.round((extractedSections.length / totalPoints) * 100))) : 100;
+                          
+                          return (
+                            <div className="bg-slate-900 text-white rounded-[2rem] p-6 shadow-xl relative overflow-hidden">
+                              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                              <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
+                                <div className="space-y-2 text-center md:text-left">
+                                  <div className="flex items-center justify-center md:justify-start gap-2 text-emerald-400 text-xs font-black uppercase tracking-widest">
+                                    <CheckCircle2 className="w-4 h-4" />
+                                    <span>Intelligence Report Generated</span>
+                                  </div>
+                                  <h3 className="text-xl font-black font-sans leading-tight">AI Website Extraction Report</h3>
+                                  <p className="text-xs text-slate-400 font-medium max-w-md">
+                                    We scanned your website and successfully structured the primary business knowledge. Fill in any missing gaps to ensure maximum accuracy in chatbot responses.
+                                  </p>
                                 </div>
-                              ))}
+                                <div className="flex items-center gap-4 shrink-0 bg-white/5 border border-white/10 px-6 py-4 rounded-2xl">
+                                  <div className="relative flex items-center justify-center">
+                                    {/* Score Indicator */}
+                                    <svg className="w-16 h-16 transform -rotate-90">
+                                      <circle cx="32" cy="32" r="28" className="text-slate-800" strokeWidth="4" fill="transparent" stroke="currentColor" />
+                                      <circle cx="32" cy="32" r="28" className="text-indigo-505 text-indigo-500" strokeWidth="4" fill="transparent" strokeDasharray={176} strokeDashoffset={176 - (176 * scoreValue) / 100} strokeLinecap="round" stroke="currentColor" />
+                                    </svg>
+                                    <span className="absolute text-sm font-black font-mono">{scoreValue}%</span>
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Completeness Score</p>
+                                    <p className="text-xs font-bold text-slate-200">
+                                      {scoreValue === 100 ? "🎉 Pure perfection!" : scoreValue > 75 ? "✨ Excellent structure" : "⚠️ Needs detail fine-tuning"}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Two Column Layout: Extracted Data breakdown and Actionable tips */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                          {/* Left Panel: Detailed Breakdown of Extracted Info (7 Columns) */}
+                          <div className="lg:col-span-7 bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-4">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                              <div>
+                                <h4 className="font-extrabold text-slate-900 text-sm leading-tight font-sans">Structured Knowledge Categories</h4>
+                                <p className="text-[10px] text-slate-400 font-medium">Verify information parsed from your digital presence</p>
+                              </div>
+                              <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100 uppercase tracking-widest font-mono">
+                                {parseExtractedKnowledge(analysisResult).length} Sections Identified
+                              </span>
                             </div>
 
-                            <AnimatePresence>
-                              {tipToFix && (
-                                <motion.div
-                                  initial={{ opacity: 0, height: 0 }}
-                                  animate={{ opacity: 1, height: 'auto' }}
-                                  exit={{ opacity: 0, height: 0 }}
-                                  className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm mt-3"
-                                >
-                                  <div className="flex items-center justify-between mb-2">
-                                    <p className="text-[10px] font-bold text-indigo-900">ENTER DETAILS FOR: <span className="text-indigo-600 uppercase">{tipToFix}</span></p>
-                                    <button onClick={() => setTipToFix(null)}><X className="w-3 h-3 text-gray-400" /></button>
+                            {(() => {
+                              const sections = parseExtractedKnowledge(analysisResult);
+                              if (sections.length === 0) {
+                                return (
+                                  <div className="p-8 text-center text-slate-400 text-xs">
+                                    No sections identified. Try manually typing business knowledge below.
                                   </div>
-                                  <div className="flex gap-2">
-                                    <input
-                                      autoFocus
-                                      type="text"
-                                      placeholder={`Enter ${tipToFix.replace('missing', '').trim()} here...`}
-                                      value={tipValue}
-                                      onChange={(e) => setTipValue(e.target.value)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                          const info = `${tipToFix}: ${tipValue}`;
-                                          setDetails(prev => prev + "\n" + info);
-                                          setScannedSuggestions(prev => prev.filter(s => s.text !== tipToFix));
-                                          setTipToFix(null);
-                                          toast.success("Added to knowledge base!");
-                                        }
-                                      }}
-                                      className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-500"
-                                    />
-                                    <button
-                                      onClick={() => {
-                                        const info = `${tipToFix}: ${tipValue}`;
-                                        setDetails(prev => prev + "\n" + info);
-                                        setScannedSuggestions(prev => prev.filter(s => s.text !== tipToFix));
-                                        setTipToFix(null);
-                                        toast.success("Added to knowledge base!");
-                                      }}
-                                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold"
-                                    >
-                                      Add
-                                    </button>
+                                );
+                              }
+
+                              const currentActiveTab = selectedBreakdownTab >= sections.length ? 0 : selectedBreakdownTab;
+                              const activeSection = sections[currentActiveTab];
+
+                              return (
+                                <div className="space-y-4">
+                                  {/* Section Quick Tabs */}
+                                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+                                    {sections.map((sect, sIdx) => {
+                                      const isActive = currentActiveTab === sIdx;
+                                      return (
+                                        <button
+                                          key={sIdx}
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedBreakdownTab(sIdx);
+                                            setEditingBreakdownIndex(null);
+                                          }}
+                                          className={`px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 border ${
+                                            isActive 
+                                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-100' 
+                                              : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-100'
+                                          }`}
+                                        >
+                                          <span>{sect.icon}</span>
+                                          <span className="capitalize">{sect.title}</span>
+                                        </button>
+                                      );
+                                    })}
                                   </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
+
+                                  {/* Active Section Panel */}
+                                  {activeSection && (
+                                    <div className="bg-slate-50/50 rounded-2xl p-5 border border-slate-100/50 space-y-3 relative group">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xl">{activeSection.icon}</span>
+                                          <span className="font-extrabold text-slate-900 text-xs capitalize">{activeSection.title}</span>
+                                        </div>
+                                        {editingBreakdownIndex !== currentActiveTab ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setEditingBreakdownIndex(currentActiveTab);
+                                              setEditingBreakdownValue(activeSection.content);
+                                            }}
+                                            className="text-[10px] font-black text-indigo-600 hover:text-indigo-700 uppercase tracking-wider flex items-center gap-1"
+                                          >
+                                            Modify
+                                          </button>
+                                        ) : null}
+                                      </div>
+
+                                      {editingBreakdownIndex === currentActiveTab ? (
+                                        <div className="space-y-3">
+                                          <textarea
+                                            rows={6}
+                                            value={editingBreakdownValue}
+                                            onChange={(e) => setEditingBreakdownValue(e.target.value)}
+                                            className="w-full p-4 bg-white border border-slate-200 rounded-xl text-xs font-medium leading-relaxed outline-none focus:ring-2 focus:ring-indigo-600/15 focus:border-indigo-600"
+                                          />
+                                          <div className="flex items-center justify-end gap-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => setEditingBreakdownIndex(null)}
+                                              className="px-3 py-1.5 text-[10px] font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                                            >
+                                              Cancel
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const sectionsCopy = parseExtractedKnowledge(details);
+                                                if (sectionsCopy[currentActiveTab]) {
+                                                  sectionsCopy[currentActiveTab].content = editingBreakdownValue;
+                                                  const reconstructed = sectionsCopy.map(s => `### ${s.title}\n${s.content}`).join('\n\n');
+                                                  setDetails(reconstructed);
+                                                  setAnalysisResult(reconstructed);
+                                                  setEditingBreakdownIndex(null);
+                                                  toast.success("Section records updated!");
+                                                }
+                                              }}
+                                              className="px-3 py-1.5 text-[10px] font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                                            >
+                                              Save
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-wrap max-h-52 overflow-y-auto">
+                                          {activeSection.content.trim()}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
-                        )}
+
+                          {/* Right Panel: Actionable Gap Checklist (5 Columns) */}
+                          <div className="lg:col-span-5 bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-4">
+                            <div>
+                              <h4 className="font-extrabold text-slate-900 text-sm leading-tight font-sans">⚠️ Potential Missing Data Points</h4>
+                              <p className="text-[10px] text-slate-400 font-medium font-mono uppercase tracking-wider">Under-optimized information gaps in AI's context</p>
+                            </div>
+
+                            {/* List of Tips */}
+                            {(() => {
+                              const tips = scannedSuggestions.filter(s => s.isTip);
+                              const otherSuggestions = scannedSuggestions.filter(s => !s.isTip);
+                              
+                              if (tips.length === 0 && otherSuggestions.length === 0) {
+                                return (
+                                  <div className="p-6 bg-emerald-50/50 border border-emerald-100/40 rounded-2xl text-center space-y-2">
+                                    <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-lg">🎉</div>
+                                    <p className="text-xs font-black text-emerald-950 font-sans">No missing gaps!</p>
+                                    <p className="text-[10px] text-emerald-700/80 font-medium max-w-[200px] mx-auto leading-relaxed">Your business training records are pristine and ready to respond accurately.</p>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                                  {tips.map((tip, idx) => {
+                                    const rawTitle = tip.text.replace('missing', '').replace('not found', '').trim();
+                                    const displayTitle = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1);
+                                    
+                                    // Make a custom explanation based on keyword to help user see why it is important
+                                    let whyItMatters = "Add this details to let the chatbot answer specific customers perfectly.";
+                                    const tL = displayTitle.toLowerCase();
+                                    if (tL.includes('pricing') || tL.includes('cost') || tL.includes('plan')) {
+                                      whyItMatters = "Customers frequently ask about cost. Adding pricing reduces support friction.";
+                                    } else if (tL.includes('refund') || tL.includes('cancel')) {
+                                      whyItMatters = "Defining refunds upfront sets reliable customer expectations and builds trust.";
+                                    } else if (tL.includes('contact') || tL.includes('whatsapp') || tL.includes('phone') || tL.includes('email')) {
+                                      whyItMatters = "If users want custom options, they'll need clear contact info to reach out.";
+                                    } else if (tL.includes('address') || tL.includes('location')) {
+                                      whyItMatters = "Helps physical customers locate your official offices or store branch.";
+                                    } else if (tL.includes('hours') || tL.includes('time')) {
+                                      whyItMatters = "Gives automatic answers to 'when are you open' support requests.";
+                                    }
+
+                                    const isResolving = tipToFix === tip.text;
+
+                                    return (
+                                      <div key={idx} className="p-4 rounded-xl border border-amber-100 bg-amber-50/20 hover:bg-amber-50/40 transition-colors space-y-3 relative overflow-hidden">
+                                        <div className="flex items-start gap-2.5">
+                                          <div className="w-5 h-5 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center shrink-0 text-xs font-bold mt-0.5">⚠️</div>
+                                          <div className="space-y-1">
+                                            <p className="text-xs font-extrabold text-amber-950 font-sans">{displayTitle} Not Found</p>
+                                            <p className="text-[10px] text-amber-800/80 font-medium leading-relaxed">{whyItMatters}</p>
+                                          </div>
+                                        </div>
+
+                                        {!isResolving ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setTipToFix(tip.text);
+                                              setTipValue('');
+                                            }}
+                                            className="w-full py-1.5 bg-amber-500 hover:bg-amber-650 hover:bg-amber-600 text-white font-extrabold text-[10px] rounded-lg tracking-widest uppercase transition-colors"
+                                          >
+                                            🔧 Fill Missing Data
+                                          </button>
+                                        ) : (
+                                          <div className="bg-white p-3 rounded-xl border border-amber-100 shadow-sm space-y-2">
+                                            <div className="flex items-center justify-between">
+                                              <p className="text-[9px] font-extrabold text-amber-900 tracking-wider">PROVIDE DETAILS:</p>
+                                              <button type="button" onClick={() => setTipToFix(null)}>
+                                                <X className="w-3 h-3 text-slate-400 hover:text-slate-600" />
+                                              </button>
+                                            </div>
+                                            <div className="flex gap-1.5">
+                                              <input
+                                                type="text"
+                                                autoFocus
+                                                placeholder={`Type details for ${displayTitle.toLowerCase()}...`}
+                                                value={tipValue}
+                                                onChange={(e) => setTipValue(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                  if (e.key === 'Enter' && tipValue.trim()) {
+                                                    const formattedRecord = `### ${displayTitle}\n${tipValue.trim()}`;
+                                                    setDetails(prev => prev.trim() + "\n\n" + formattedRecord);
+                                                    setAnalysisResult(prev => prev.trim() + "\n\n" + formattedRecord);
+                                                    setScannedSuggestions(prev => prev.filter(s => s.text !== tip.text));
+                                                    setTipToFix(null);
+                                                    toast.success(`${displayTitle} added to Knowledge Base!`);
+                                                  }
+                                                }}
+                                                className="flex-1 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium outline-none focus:ring-2 focus:ring-indigo-600/10"
+                                              />
+                                              <button
+                                                type="button"
+                                                disabled={!tipValue.trim()}
+                                                onClick={() => {
+                                                  const formattedRecord = `### ${displayTitle}\n${tipValue.trim()}`;
+                                                  setDetails(prev => prev.trim() + "\n\n" + formattedRecord);
+                                                  setAnalysisResult(prev => prev.trim() + "\n\n" + formattedRecord);
+                                                  setScannedSuggestions(prev => prev.filter(s => s.text !== tip.text));
+                                                  setTipToFix(null);
+                                                  toast.success(`${displayTitle} added to Knowledge Base!`);
+                                                }}
+                                                className="px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-black uppercase transition-colors"
+                                              >
+                                                Add
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+
+                                  {otherSuggestions.map((s, idx) => (
+                                    <button
+                                      key={`other-${idx}`}
+                                      type="button"
+                                      onClick={() => s.url && setWebsiteUrl(s.url)}
+                                      disabled={!s.url}
+                                      className="w-full p-3 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors flex items-center justify-between text-left"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-4 h-4 bg-emerald-50 text-emerald-600 rounded flex items-center justify-center text-[10px]">✓</div>
+                                        <span className="text-xs font-bold text-slate-700">{s.text}</span>
+                                      </div>
+                                      {s.url && <span className="text-[9px] font-black text-indigo-600 uppercase">Load URL</span>}
+                                    </button>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
