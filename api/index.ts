@@ -400,29 +400,42 @@ BRAND RULES & COMMUNICATIONS:
 - CUSTOM BRAIN INSTRUCTION: ${customInstructions || 'None'}`;
 
   // Build conversational turns natively for Gemini
-  const contents: any[] = [];
+  const rawContents: any[] = [];
   if (chatHistory && chatHistory.length > 0) {
-    chatHistory.slice(-8).forEach(m => {
-      const role = m.role === 'user' ? 'user' : 'model';
+    chatHistory.slice(-10).forEach(m => {
+      const role = (m.role === 'user' || m.role === 'customer') ? 'user' : 'model';
       const text = m.content || m.text || '';
       if (text.trim()) {
-        contents.push({
+        rawContents.push({
           role,
-          parts: [{ text }]
+          parts: [{ text: text.trim() }]
         });
       }
     });
   }
 
-  // Safely ensure that the first message has the role 'user' (Gemini requirement)
-  while (contents.length > 0 && contents[0].role === 'model') {
-    contents.shift();
-  }
-
-  // Append the current user query
-  contents.push({
+  // Ensure last / current query is appended
+  rawContents.push({
     role: 'user',
-    parts: [{ text: query }]
+    parts: [{ text: query.trim() }]
+  });
+
+  // Clean and alternate turns perfectly (merging consecutive identical turns)
+  const contents: any[] = [];
+  rawContents.forEach((turn) => {
+    if (contents.length === 0) {
+      if (turn.role === 'user') {
+        contents.push(turn);
+      }
+    } else {
+      const lastTurn = contents[contents.length - 1];
+      if (lastTurn.role === turn.role) {
+        // Merge identical consecutive roles into a single turn
+        lastTurn.parts[0].text += "\n" + turn.parts[0].text;
+      } else {
+        contents.push(turn);
+      }
+    }
   });
 
   // Try Gemini 3.5 Flash first
@@ -447,7 +460,30 @@ BRAND RULES & COMMUNICATIONS:
       }
       throw new Error("Empty Gemini response");
     } catch (err: any) {
-      console.warn("⚠️ Gemini 3.5 Flash failed, trying Llama 3.3 / Groq. Error details:", err.message || err);
+      console.warn("⚠️ Gemini 3.5 Flash failed, trying fallback model gemini-2.5-flash. Error details:", err.message || err);
+      
+      try {
+        console.log("🤖 Attempting chat completion with gemini-2.5-flash fallback...");
+        const response2 = await client.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents,
+          config: {
+            systemInstruction: systemPrompt,
+            temperature: 0.85,
+            topP: 0.95,
+            maxOutputTokens: 1000
+          }
+        });
+
+        let text2 = response2.text;
+        if (text2 && text2.length >= 2) {
+          console.log("✅ Successfully generated response using gemini-2.5-flash!");
+          return text2;
+        }
+        throw new Error("Empty gemini-2.5-flash response");
+      } catch (err2: any) {
+        console.warn("⚠️ gemini-2.5-flash fallback failed. Error details:", err2.message || err2);
+      }
     }
   }
 

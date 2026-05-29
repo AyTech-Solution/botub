@@ -1,6 +1,9 @@
+const metaEnv = (import.meta as any).env || {};
+const API_BASE = (metaEnv.VITE_API_URL || '').replace(/\/$/, '');
+
 export async function analyzeWebsite(url: string) {
   try {
-    const fetchResponse = await fetch('/api/analyze-website', {
+    const fetchResponse = await fetch(`${API_BASE}/api/analyze-website`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url })
@@ -33,7 +36,7 @@ export async function analyzeWebsite(url: string) {
 
 export async function analyzeText(text: string, title?: string) {
   try {
-    const fetchResponse = await fetch('/api/analyze-text', {
+    const fetchResponse = await fetch(`${API_BASE}/api/analyze-text`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, title })
@@ -70,7 +73,7 @@ export async function generateBotResponse(
   ownerEmail?: string
 ) {
   try {
-    const response = await fetch('/api/chat', {
+    const response = await fetch(`${API_BASE}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
