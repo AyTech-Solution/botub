@@ -52,10 +52,10 @@
       </ul>
     </td>
     <td width="45%" valign="top" style="border: none; padding-left: 15px;">
-      <h3 style="color: #00FFCC; margin-top: 0;">📊 Live Repository Analytics</h3>
-      <p align="center" style="margin: 0;">
-        <img src="https://github-readme-stats.vercel.app/api/pin/?username=AyTech-Solution&repo=botub&theme=tokyonight&show_owner=false" width="100%"/>
-      </p>
+     <h3 style="color: #00FFCC; margin-top: 0;">📊 Live Repository Analytics</h3>
+<p align="center" style="margin: 0;">
+  <img src="https://github-readme-stats.vercel.app/api/pin/?username=AyTech-Solution&repo=botub&theme=tokyonight" width="100%"/>
+</p>
     </td>
   </tr>
 </table>
