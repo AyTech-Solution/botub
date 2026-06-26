@@ -64,6 +64,7 @@
 
 <!-- FOOTER START -->
 <div align="center">
+  <h3>Distributed under the Apache License 2.0. See `LICENSE` for more information.</h3>
 <h2>
   <a href="https://instagram.com/aytech_solution" target="_blank" style="text-decoration: none;">
     <img src="https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white&labelColor=000000" valign="middle" alt="Instagram" />
