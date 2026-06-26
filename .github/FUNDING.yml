@@ -3,6 +3,6 @@
 # -----------------------------------------------------------------
 github: [AyTech-Solution]
 custom: [
- <a href="https://upilinks.in/payment-link/upi1042559340" target="_blank" style="color: #00FFCC; text-decoration: none; font-weight: bold;">💸 Pay ₹99 via UPI</a>
-<a href="https://instagram.com/aytech_solution" target="_blank" style="color: #e1306c; text-decoration: none; font-weight: bold;">Follow us on Instagram</a>
+ "https://upilinks.in/payment-link/upi1042559340",
+"https://instagram.com/aytech_solution"
 ]
