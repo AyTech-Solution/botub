@@ -1,20 +1,15 @@
 # Botub AI - Standalone Deployment Guide
 
-This application is ready to be deployed on **Vercel** or any Node.js environment.
+This application is ready to be deployed on **Render** or any Node.js environment.
 
-## Deployment to Vercel
+## Deployment to Render
 
-1. **Connect your GitHub Repository** to Vercel.
-2. **Environment Variables**: Add all variables from `.env.example` to your Vercel project settings.
+1. **Connect your GitHub Repository** to Render.
+2. **Environment Variables**: Add all variables from `.env.example` to your Render project settings.
    - For `FIREBASE_SERVICE_ACCOUNT`, you can download the JSON key from your Firebase Console (Project Settings > Service Accounts) and paste the ENTIRE JSON string as the value.
 3. **Build Command**: `npm run build`
 4. **Install Command**: `npm install`
 5. **Output Directory**: `dist`
-
-## Features
-- **Standalone Backend**: The `api/` directory contains serverless functions for Vercel.
-- **SPA Routing**: `vercel.json` handles all client-side routes, preventing 404 on refresh.
-- **Security**: Backend routes are protected by Firebase Admin authentication.
 
 ## Local Development
 1. `npm install`
